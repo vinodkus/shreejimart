@@ -1,0 +1,39 @@
+﻿{
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "POSTGRES_HOST": "localhost",
+        "POSTGRES_PORT": "5432",
+        "POSTGRES_DB": "ShreejiMart",
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "Vi8@kumar",
+        "ADMIN_USERNAME": "admin",
+        "ADMIN_PASSWORD": "admin123"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "http://localhost:5080"
+    },
+    "https": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "POSTGRES_HOST": "localhost",
+        "POSTGRES_PORT": "5432",
+        "POSTGRES_DB": "ShreejiMart",
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "Vi8@kumar",
+        "ADMIN_USERNAME": "admin",
+        "ADMIN_PASSWORD": "admin123"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "https://localhost:7080;http://localhost:5080"
+    }
+  },
+  "$schema": "https://json.schemastore.org/launchsettings.json"
+}

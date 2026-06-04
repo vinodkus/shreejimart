@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+
+**/bin/
+**/obj/
+*.user
+*.suo
+
+**/node_modules/
+**/dist/
+**/.angular/
+
+.vs/
+.vscode/
+Thumbs.db

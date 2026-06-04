@@ -1,0 +1,205 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using ShreeJiMart.Api.Data;
+using ShreeJiMart.Api.Models;
+
+namespace ShreeJiMart.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public sealed class OrdersController(AppDbContext db) : ControllerBase
+{
+    public sealed record OrderLineRequest(Guid ProductId, int Quantity);
+
+    public sealed record CreateOrderRequest(
+        string? CustomerName,
+        string Phone,
+        string DeliveryAddress,
+        List<OrderLineRequest> Items
+    );
+
+    public sealed record UpdateOrderStatusRequest(string Status);
+
+    public sealed record OrderLineDto(
+        Guid Id,
+        Guid ProductId,
+        string ProductName,
+        string Unit,
+        decimal UnitPrice,
+        int Quantity,
+        decimal LineTotal
+    );
+
+    public sealed record OrderDto(
+        Guid Id,
+        string? CustomerName,
+        string Phone,
+        string DeliveryAddress,
+        string PaymentMethod,
+        string Status,
+        decimal TotalAmount,
+        DateTime CreatedAt,
+        List<OrderLineDto> Lines
+    );
+
+    [HttpPost]
+    public async Task<ActionResult<OrderDto>> Create([FromBody] CreateOrderRequest request, CancellationToken ct)
+    {
+        var validation = ValidateGuestOrder(request);
+        if (validation.ErrorMessage is not null) return BadRequest(validation.ErrorMessage);
+
+        var productIds = request.Items.Select(x => x.ProductId).Distinct().ToList();
+        var products = await db.Products
+            .Where(x => productIds.Contains(x.Id) && x.IsActive)
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        if (products.Count != productIds.Count)
+            return BadRequest("One or more products are invalid or not available.");
+
+        var lines = new List<OrderLine>();
+        decimal total = 0;
+
+        foreach (var item in request.Items)
+        {
+            if (item.Quantity < 1 || item.Quantity > 99)
+                return BadRequest("Quantity must be between 1 and 99 per product.");
+
+            var product = products[item.ProductId];
+            var lineTotal = product.Price * item.Quantity;
+            total += lineTotal;
+
+            lines.Add(new OrderLine
+            {
+                Id = Guid.NewGuid(),
+                ProductId = product.Id,
+                ProductName = product.Name,
+                Unit = product.Unit,
+                UnitPrice = product.Price,
+                Quantity = item.Quantity,
+                LineTotal = lineTotal,
+            });
+        }
+
+        if (total <= 0)
+            return BadRequest("Order total must be greater than zero.");
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            CustomerName = validation.CustomerName,
+            Phone = validation.Phone!,
+            DeliveryAddress = validation.DeliveryAddress!,
+            PaymentMethod = "COD",
+            Status = OrderStatus.Pending,
+            TotalAmount = total,
+            CreatedAt = DateTime.UtcNow,
+            Lines = lines,
+        };
+
+        foreach (var line in lines)
+            line.OrderId = order.Id;
+
+        db.Orders.Add(order);
+        await db.SaveChangesAsync(ct);
+
+        return CreatedAtAction(nameof(GetById), new { id = order.Id }, ToDto(order));
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<List<OrderDto>>> GetAll(CancellationToken ct)
+    {
+        var orders = await db.Orders
+            .AsNoTracking()
+            .Include(x => x.Lines)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(ct);
+
+        return Ok(orders.Select(ToDto).ToList());
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<OrderDto>> GetById(Guid id, CancellationToken ct)
+    {
+        var order = await db.Orders
+            .AsNoTracking()
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.Id == id, ct);
+
+        return order is null ? NotFound() : Ok(ToDto(order));
+    }
+
+    [HttpPatch("{id:guid}/status")]
+    public async Task<ActionResult<OrderDto>> UpdateStatus(Guid id, [FromBody] UpdateOrderStatusRequest request, CancellationToken ct)
+    {
+        var status = (request.Status ?? "").Trim();
+        if (!OrderStatus.All.Contains(status))
+            return BadRequest($"Status must be one of: {string.Join(", ", OrderStatus.All)}.");
+
+        var order = await db.Orders
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.Id == id, ct);
+
+        if (order is null) return NotFound();
+
+        order.Status = status;
+        await db.SaveChangesAsync(ct);
+
+        return Ok(ToDto(order));
+    }
+
+    private static OrderDto ToDto(Order order) =>
+        new(
+            order.Id,
+            order.CustomerName,
+            order.Phone,
+            order.DeliveryAddress,
+            order.PaymentMethod,
+            order.Status,
+            order.TotalAmount,
+            order.CreatedAt,
+            order.Lines
+                .OrderBy(x => x.ProductName)
+                .Select(x => new OrderLineDto(
+                    x.Id,
+                    x.ProductId,
+                    x.ProductName,
+                    x.Unit,
+                    x.UnitPrice,
+                    x.Quantity,
+                    x.LineTotal))
+                .ToList());
+
+    private static (string? ErrorMessage, string? CustomerName, string? Phone, string? DeliveryAddress) ValidateGuestOrder(
+        CreateOrderRequest request)
+    {
+        if (request.Items is null || request.Items.Count == 0)
+            return ("At least one item is required.", null, null, null);
+
+        var phone = NormalizePhone(request.Phone);
+        if (phone is null)
+            return ("Phone must be a valid 10-digit Indian mobile number.", null, null, null);
+
+        var address = (request.DeliveryAddress ?? "").Trim();
+        if (address.Length is < 10 or > 500)
+            return ("Delivery address must be 10-500 characters.", null, null, null);
+
+        string? name = string.IsNullOrWhiteSpace(request.CustomerName)
+            ? null
+            : request.CustomerName.Trim();
+
+        if (name?.Length > 120)
+            return ("Customer name max length is 120.", null, null, null);
+
+        return (null, name, phone, address);
+    }
+
+    private static string? NormalizePhone(string? phone)
+    {
+        var digits = new string((phone ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length == 12 && digits.StartsWith("91", StringComparison.Ordinal))
+            digits = digits[2..];
+        if (digits.Length != 10 || digits[0] is < '6' or > '9')
+            return null;
+        return digits;
+    }
+}
