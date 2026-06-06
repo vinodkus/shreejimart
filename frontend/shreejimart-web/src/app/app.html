@@ -1,0 +1,36 @@
+@if (isAdminRoute()) {
+  <router-outlet />
+} @else if (isLoginRoute()) {
+  <div class="auth-screen">
+    <router-outlet />
+  </div>
+} @else {
+  <div class="store-app">
+    <header class="store-header">
+      <div class="store-header__inner">
+        <a routerLink="/" class="store-logo">
+          <span class="store-logo__mark">S</span>
+          <span class="store-logo__text">ShreeJi<strong>Mart</strong></span>
+        </a>
+        <div class="store-location">
+          <span class="store-location__label">Delivery in 15 mins</span>
+          <span class="store-location__value">Home · Indore</span>
+        </div>
+        <div class="store-header__actions">
+          <a routerLink="/cart" class="store-cart-link">
+            <span class="store-cart-link__icon" aria-hidden="true">🛒</span>
+            <span class="store-cart-link__label">Cart</span>
+            <span class="store-cart-link__badge" *ngIf="cartCount() > 0">{{ cartCount() }}</span>
+          </a>
+          <a routerLink="/admin/login" class="store-admin-link">Admin</a>
+        </div>
+      </div>
+    </header>
+    <main class="store-main">
+      <router-outlet />
+    </main>
+    <footer class="store-footer">
+      <p>Fresh groceries delivered fast · ShreeJiMart</p>
+    </footer>
+  </div>
+}

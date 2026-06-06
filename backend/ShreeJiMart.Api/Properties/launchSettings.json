@@ -6,11 +6,6 @@
       "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "POSTGRES_HOST": "localhost",
-        "POSTGRES_PORT": "5432",
-        "POSTGRES_DB": "ShreejiMart",
-        "POSTGRES_USER": "postgres",
-        "POSTGRES_PASSWORD": "Vi8@kumar",
         "ADMIN_USERNAME": "admin",
         "ADMIN_PASSWORD": "admin123"
       },
@@ -23,11 +18,6 @@
       "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "POSTGRES_HOST": "localhost",
-        "POSTGRES_PORT": "5432",
-        "POSTGRES_DB": "ShreejiMart",
-        "POSTGRES_USER": "postgres",
-        "POSTGRES_PASSWORD": "Vi8@kumar",
         "ADMIN_USERNAME": "admin",
         "ADMIN_PASSWORD": "admin123"
       },

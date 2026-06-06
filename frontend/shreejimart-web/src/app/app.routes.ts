@@ -1,0 +1,39 @@
+import { Routes } from '@angular/router';
+import { adminGuard } from './auth/admin.guard';
+import { CustomerHomePage } from './pages/customer-home.page';
+import { CartPage } from './pages/cart.page';
+import { CheckoutPage } from './pages/checkout.page';
+import { OrderPlacedPage } from './pages/order-placed.page';
+import { AdminLoginPage } from './pages/admin-login.page';
+
+export const routes: Routes = [
+  { path: '', component: CustomerHomePage },
+  { path: 'cart', component: CartPage },
+  { path: 'checkout', component: CheckoutPage },
+  { path: 'order-placed', component: OrderPlacedPage },
+  { path: 'admin/login', component: AdminLoginPage },
+  {
+    path: 'admin',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./layout/admin-layout.page').then((m) => m.AdminLayoutPage),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'products' },
+      {
+        path: 'products',
+        loadComponent: () =>
+          import('./pages/products.page').then((m) => m.ProductsPage),
+      },
+      {
+        path: 'categories',
+        loadComponent: () =>
+          import('./pages/categories.page').then((m) => m.CategoriesPage),
+      },
+      {
+        path: 'orders',
+        loadComponent: () => import('./pages/orders.page').then((m) => m.OrdersPage),
+      },
+    ],
+  },
+  { path: '**', redirectTo: '' },
+];

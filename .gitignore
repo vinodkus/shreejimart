@@ -4,6 +4,9 @@
 
 **/bin/
 **/obj/
+**/publish/
+
+Notes.txt
 *.user
 *.suo
 

@@ -22,16 +22,42 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
 
     public sealed record CreateCategoryRequest(string Name);
 
+    public sealed record UpdateCategoryRequest(string Name);
+
     [HttpPost]
     public async Task<ActionResult<Category>> Create([FromBody] CreateCategoryRequest request, CancellationToken ct)
     {
-        var name = (request.Name ?? "").Trim();
-        if (name.Length is < 2 or > 120) return BadRequest("Name must be 2-120 characters.");
+        var validation = ValidateName(request.Name);
+        if (validation.ErrorMessage is not null) return BadRequest(validation.ErrorMessage);
 
-        var entity = new Category { Id = Guid.NewGuid(), Name = name };
+        var entity = new Category { Id = Guid.NewGuid(), Name = validation.Name! };
         db.Categories.Add(entity);
         await db.SaveChangesAsync(ct);
 
         return CreatedAtAction(nameof(GetAll), new { id = entity.Id }, entity);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<Category>> Update(Guid id, [FromBody] UpdateCategoryRequest request, CancellationToken ct)
+    {
+        var entity = await db.Categories.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (entity is null) return NotFound();
+
+        var validation = ValidateName(request.Name);
+        if (validation.ErrorMessage is not null) return BadRequest(validation.ErrorMessage);
+
+        entity.Name = validation.Name!;
+        await db.SaveChangesAsync(ct);
+
+        return Ok(entity);
+    }
+
+    private static (string? ErrorMessage, string? Name) ValidateName(string? name)
+    {
+        var trimmed = (name ?? "").Trim();
+        if (trimmed.Length is < 2 or > 120)
+            return ("Name must be 2-120 characters.", null);
+
+        return (null, trimmed);
     }
 }
