@@ -177,25 +177,41 @@ export class CustomerHomePage {
 
   readonly categories = signal<Category[]>([]);
   readonly products = signal<Product[]>([]);
+  readonly allProducts = signal<Product[]>([]);
   readonly error = signal<string | null>(null);
   readonly addedId = signal<string | null>(null);
   readonly showAllCategories = signal(false);
+  readonly showSuggestions = signal(false);
 
   filterCategoryId = '';
   readonly searchText = signal('');
 
   private readonly categoryCollapseThreshold = 10;
+  private readonly maxSuggestions = 8;
 
   readonly filteredProducts = computed(() => {
     const q = this.searchText().trim().toLowerCase();
-    if (!q) return this.products();
+    const source = q ? this.allProducts() : this.products();
+    if (!q) return source;
 
-    return this.products().filter((p) => {
-      const name = p.name.toLowerCase();
-      const unit = p.unit.toLowerCase();
-      const category = this.categoryName(p.categoryId).toLowerCase();
-      return name.includes(q) || unit.includes(q) || category.includes(q);
-    });
+    return source.filter((p) => this.matchesQuery(p, q));
+  });
+
+  readonly searchSuggestions = computed(() => {
+    const q = this.searchText().trim().toLowerCase();
+    if (!q) return [] as SearchSuggestion[];
+
+    const categoryItems: SearchSuggestion[] = this.categories()
+      .filter((c) => c.name.toLowerCase().includes(q))
+      .slice(0, 3)
+      .map((category) => ({ kind: 'category' as const, category }));
+
+    const productItems: SearchSuggestion[] = this.allProducts()
+      .filter((p) => this.matchesQuery(p, q))
+      .slice(0, this.maxSuggestions)
+      .map((product) => ({ kind: 'product' as const, product }));
+
+    return [...categoryItems, ...productItems].slice(0, this.maxSuggestions);
   });
 
   constructor() {
@@ -203,7 +219,53 @@ export class CustomerHomePage {
       next: (items) => this.categories.set(items),
       error: (e) => this.error.set(e?.message ?? 'Failed to load categories'),
     });
+    this.loadAllProducts();
     this.refreshProducts();
+  }
+
+  private loadAllProducts() {
+    this.api.listProducts().subscribe({
+      next: (items) => this.allProducts.set(items.filter((p) => p.isActive)),
+      error: (e) => this.error.set(e?.message ?? 'Failed to load products'),
+    });
+  }
+
+  private matchesQuery(p: Product, q: string) {
+    const name = p.name.toLowerCase();
+    const unit = p.unit.toLowerCase();
+    const category = this.categoryName(p.categoryId).toLowerCase();
+    return name.includes(q) || unit.includes(q) || category.includes(q);
+  }
+
+  onSearchInput(value: string) {
+    this.searchText.set(value);
+    this.showSuggestions.set(value.trim().length > 0);
+  }
+
+  onSearchFocus() {
+    if (this.searchText().trim()) this.showSuggestions.set(true);
+  }
+
+  onSearchBlur() {
+    window.setTimeout(() => this.showSuggestions.set(false), 180);
+  }
+
+  clearSearch(event: Event) {
+    event.preventDefault();
+    this.searchText.set('');
+    this.showSuggestions.set(false);
+  }
+
+  pickSuggestion(item: SearchSuggestion) {
+    if (item.kind === 'category') {
+      this.searchText.set('');
+      this.showSuggestions.set(false);
+      this.selectCategory(item.category.id);
+      return;
+    }
+
+    this.searchText.set(item.product.name);
+    this.showSuggestions.set(false);
   }
 
   sectionTitle() {
