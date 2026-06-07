@@ -88,6 +88,10 @@ export class ApiClient {
     return this.http.put<Category>(`${this.baseUrl}/api/categories/${id}`, payload);
   }
 
+  deleteCategory(id: string) {
+    return this.http.delete<void>(`${this.baseUrl}/api/categories/${id}`);
+  }
+
   listProducts(categoryId?: string) {
     const url = new URL(`${this.baseUrl}/api/products`);
     if (categoryId) url.searchParams.set('categoryId', categoryId);

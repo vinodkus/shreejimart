@@ -65,6 +65,7 @@ import { ApiClient, Category } from '../api/api-client';
                 <td><code class="id-code">{{ c.id }}</code></td>
                 <td class="actions-cell">
                   <button type="button" class="btn-ghost" (click)="openEdit(c)">Edit</button>
+                  <button type="button" class="btn-danger" (click)="remove(c)">Delete</button>
                 </td>
               </tr>
             </tbody>
@@ -143,6 +144,24 @@ export class CategoriesPage {
         this.refresh();
       },
       error: (e) => this.error.set(e?.error ?? e?.message ?? 'Failed to update'),
+      complete: () => this.isBusy.set(false),
+    });
+  }
+
+  remove(category: Category) {
+    if (!confirm(`Delete category "${category.name}"?`)) return;
+
+    this.isBusy.set(true);
+    this.error.set(null);
+    this.success.set(null);
+
+    this.api.deleteCategory(category.id).subscribe({
+      next: () => {
+        if (this.editingId() === category.id) this.cancelEdit();
+        this.success.set('Category deleted.');
+        this.refresh();
+      },
+      error: (e) => this.error.set(e?.error ?? e?.message ?? 'Failed to delete'),
       complete: () => this.isBusy.set(false),
     });
   }

@@ -52,6 +52,21 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
         return Ok(entity);
     }
 
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        var entity = await db.Categories.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (entity is null) return NotFound();
+
+        var hasProducts = await db.Products.AnyAsync(x => x.CategoryId == id, ct);
+        if (hasProducts)
+            return BadRequest("Cannot delete a category that has products. Remove or reassign those products first.");
+
+        db.Categories.Remove(entity);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     private static (string? ErrorMessage, string? Name) ValidateName(string? name)
     {
         var trimmed = (name ?? "").Trim();
