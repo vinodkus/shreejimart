@@ -11,4 +11,5 @@ public sealed class Product
     public string Unit { get; set; } = "pcs";
     public string? ImageUrl { get; set; }
     public bool IsActive { get; set; } = true;
+    public int StockQuantity { get; set; }
 }

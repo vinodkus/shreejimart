@@ -31,6 +31,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Unit).HasColumnName("unit").HasMaxLength(32).IsRequired();
             entity.Property(x => x.ImageUrl).HasColumnName("image_url").HasMaxLength(500);
             entity.Property(x => x.IsActive).HasColumnName("is_active");
+            entity.Property(x => x.StockQuantity).HasColumnName("stock_quantity");
 
             entity.HasOne(x => x.Category)
                 .WithMany(x => x.Products)

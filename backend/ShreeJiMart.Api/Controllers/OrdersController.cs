@@ -51,20 +51,35 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
         var productIds = request.Items.Select(x => x.ProductId).Distinct().ToList();
         var products = await db.Products
             .Where(x => productIds.Contains(x.Id) && x.IsActive)
-            .ToDictionaryAsync(x => x.Id, ct);
+            .ToListAsync(ct);
 
         if (products.Count != productIds.Count)
             return BadRequest("One or more products are invalid or not available.");
 
-        var lines = new List<OrderLine>();
-        decimal total = 0;
+        var productMap = products.ToDictionary(x => x.Id);
+        var qtyByProduct = new Dictionary<Guid, int>();
 
         foreach (var item in request.Items)
         {
             if (item.Quantity < 1 || item.Quantity > 99)
                 return BadRequest("Quantity must be between 1 and 99 per product.");
 
-            var product = products[item.ProductId];
+            qtyByProduct[item.ProductId] = qtyByProduct.GetValueOrDefault(item.ProductId) + item.Quantity;
+        }
+
+        foreach (var (productId, qtyNeeded) in qtyByProduct)
+        {
+            var product = productMap[productId];
+            if (product.StockQuantity < qtyNeeded)
+                return BadRequest($"Not enough stock for {product.Name}. Only {product.StockQuantity} left.");
+        }
+
+        var lines = new List<OrderLine>();
+        decimal total = 0;
+
+        foreach (var item in request.Items)
+        {
+            var product = productMap[item.ProductId];
             var lineTotal = product.Price * item.Quantity;
             total += lineTotal;
 
@@ -82,6 +97,11 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
 
         if (total <= 0)
             return BadRequest("Order total must be greater than zero.");
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
+        foreach (var (productId, qtyNeeded) in qtyByProduct)
+            productMap[productId].StockQuantity -= qtyNeeded;
 
         var order = new Order
         {
@@ -101,6 +121,7 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
 
         db.Orders.Add(order);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return CreatedAtAction(nameof(GetById), new { id = order.Id }, ToDto(order));
     }
@@ -141,10 +162,29 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
 
         if (order is null) return NotFound();
 
+        var previousStatus = order.Status;
+
+        if (status == OrderStatus.Cancelled && previousStatus != OrderStatus.Cancelled)
+            await RestoreStockAsync(order, ct);
+
         order.Status = status;
         await db.SaveChangesAsync(ct);
 
         return Ok(ToDto(order));
+    }
+
+    private async Task RestoreStockAsync(Order order, CancellationToken ct)
+    {
+        var productIds = order.Lines.Select(x => x.ProductId).Distinct().ToList();
+        var products = await db.Products
+            .Where(x => productIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        foreach (var line in order.Lines)
+        {
+            if (products.TryGetValue(line.ProductId, out var product))
+                product.StockQuantity += line.Quantity;
+        }
     }
 
     private static OrderDto ToDto(Order order) =>

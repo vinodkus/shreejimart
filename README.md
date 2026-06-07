@@ -22,6 +22,7 @@
    ```
    Or set `DATABASE_URL` in VS 2022 → **ShreeJiMart.Api** → Properties → Debug → Environment variables.
 3. In Neon **SQL Editor**, run `database/neon-full-schema.sql` (creates `categories`, `products`, `orders`, `order_lines`).
+4. If the database already exists, also run `database/add-stock-column.sql` for product stock tracking.
 
 The API loads `.env` on startup and uses SSL for Neon automatically.
 

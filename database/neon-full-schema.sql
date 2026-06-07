@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS products (
     price NUMERIC(12, 2) NOT NULL,
     unit VARCHAR(32) NOT NULL,
     image_url VARCHAR(500),
-    is_active BOOLEAN NOT NULL DEFAULT TRUE
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    stock_quantity INT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS orders (

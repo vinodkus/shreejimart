@@ -26,7 +26,7 @@ import { resolveImageUrl } from '../utils/image-url';
           </div>
           <div class="cart-row__info">
             <h3>{{ item.name }}</h3>
-            <p>{{ item.unit }} · ₹{{ item.price }}</p>
+            <p>{{ item.unit }} · ₹{{ item.price }} · {{ item.stockQuantity }} in stock</p>
           </div>
           <div class="cart-row__qty">
             <button type="button" class="qty-btn" (click)="changeQty(item.productId, item.quantity - 1)">−</button>

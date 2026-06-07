@@ -33,7 +33,8 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
         decimal Price,
         string Unit,
         string? ImageUrl,
-        bool IsActive
+        bool IsActive,
+        int StockQuantity
     );
 
     public sealed record UpdateProductRequest(
@@ -42,7 +43,8 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
         decimal Price,
         string Unit,
         string? ImageUrl,
-        bool IsActive
+        bool IsActive,
+        int StockQuantity
     );
 
     public sealed record BulkProductItemRequest(
@@ -50,7 +52,8 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
         decimal Price,
         string Unit,
         string? ImageUrl,
-        bool IsActive
+        bool IsActive,
+        int StockQuantity
     );
 
     public sealed record BulkCreateProductsRequest(
@@ -87,10 +90,11 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
                 item.Price,
                 item.Unit,
                 item.ImageUrl,
+                item.StockQuantity,
                 ct);
 
             if (validation.Error is not null)
-                return BadRequest($"Row {i + 1}: check name (2-160 chars), unit, and price.");
+                return BadRequest($"Row {i + 1}: check name, unit, price, and stock.");
 
             entities.Add(new Product
             {
@@ -101,6 +105,7 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
                 Unit = validation.Unit!,
                 ImageUrl = validation.ImageUrl,
                 IsActive = item.IsActive,
+                StockQuantity = validation.StockQuantity,
             });
         }
 
@@ -113,7 +118,14 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Product>> Create([FromBody] CreateProductRequest request, CancellationToken ct)
     {
-        var validation = await ValidateAndBuildAsync(request.CategoryId, request.Name, request.Price, request.Unit, request.ImageUrl, ct);
+        var validation = await ValidateAndBuildAsync(
+            request.CategoryId,
+            request.Name,
+            request.Price,
+            request.Unit,
+            request.ImageUrl,
+            request.StockQuantity,
+            ct);
         if (validation.Error is not null) return validation.Error;
 
         var entity = new Product
@@ -125,6 +137,7 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
             Unit = validation.Unit!,
             ImageUrl = validation.ImageUrl,
             IsActive = request.IsActive,
+            StockQuantity = validation.StockQuantity,
         };
 
         db.Products.Add(entity);
@@ -139,7 +152,14 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
         var entity = await db.Products.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (entity is null) return NotFound();
 
-        var validation = await ValidateAndBuildAsync(request.CategoryId, request.Name, request.Price, request.Unit, request.ImageUrl, ct);
+        var validation = await ValidateAndBuildAsync(
+            request.CategoryId,
+            request.Name,
+            request.Price,
+            request.Unit,
+            request.ImageUrl,
+            request.StockQuantity,
+            ct);
         if (validation.Error is not null) return validation.Error;
 
         entity.CategoryId = request.CategoryId;
@@ -148,6 +168,7 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
         entity.Unit = validation.Unit!;
         entity.ImageUrl = validation.ImageUrl;
         entity.IsActive = request.IsActive;
+        entity.StockQuantity = validation.StockQuantity;
 
         await db.SaveChangesAsync(ct);
         return Ok(entity);
@@ -164,36 +185,40 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
-    private async Task<(ActionResult? Error, string? Name, string? Unit, string? ImageUrl)> ValidateAndBuildAsync(
+    private async Task<(ActionResult? Error, string? Name, string? Unit, string? ImageUrl, int StockQuantity)> ValidateAndBuildAsync(
         Guid categoryId,
         string? name,
         decimal price,
         string? unit,
         string? imageUrl,
+        int stockQuantity,
         CancellationToken ct)
     {
         if (categoryId == Guid.Empty)
-            return (BadRequest("CategoryId is required."), null, null, null);
+            return (BadRequest("CategoryId is required."), null, null, null, 0);
 
         var categoryExists = await db.Categories.AnyAsync(x => x.Id == categoryId, ct);
         if (!categoryExists)
-            return (BadRequest("Category does not exist."), null, null, null);
+            return (BadRequest("Category does not exist."), null, null, null, 0);
 
         var trimmedName = (name ?? "").Trim();
         if (trimmedName.Length is < 2 or > 160)
-            return (BadRequest("Name must be 2-160 characters."), null, null, null);
+            return (BadRequest("Name must be 2-160 characters."), null, null, null, 0);
 
         var trimmedUnit = (unit ?? "").Trim();
         if (trimmedUnit.Length is < 1 or > 32)
-            return (BadRequest("Unit must be 1-32 characters."), null, null, null);
+            return (BadRequest("Unit must be 1-32 characters."), null, null, null, 0);
 
         if (price < 0)
-            return (BadRequest("Price must be >= 0."), null, null, null);
+            return (BadRequest("Price must be >= 0."), null, null, null, 0);
+
+        if (stockQuantity < 0)
+            return (BadRequest("Stock must be >= 0."), null, null, null, 0);
 
         string? trimmedImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl.Trim();
         if (trimmedImageUrl?.Length > 500)
-            return (BadRequest("Image URL max length is 500."), null, null, null);
+            return (BadRequest("Image URL max length is 500."), null, null, null, 0);
 
-        return (null, trimmedName, trimmedUnit, trimmedImageUrl);
+        return (null, trimmedName, trimmedUnit, trimmedImageUrl, stockQuantity);
     }
 }

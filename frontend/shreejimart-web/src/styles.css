@@ -639,6 +639,16 @@ a {
   border-radius: 6px;
 }
 
+.product-tile__tag--out {
+  background: #dc2626;
+}
+
+.btn-add:disabled {
+  background: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 .product-tile__body {
   padding: 12px;
   display: flex;

@@ -7,6 +7,7 @@ export interface CartItem {
   price: number;
   unit: string;
   imageUrl?: string | null;
+  stockQuantity: number;
   quantity: number;
 }
 
@@ -27,10 +28,15 @@ export class CartService {
   );
 
   addProduct(product: Product) {
+    const stock = product.stockQuantity ?? 0;
+    if (stock < 1) return;
+
     const current = [...this.items()];
     const existing = current.find((x) => x.productId === product.id);
     if (existing) {
-      existing.quantity = Math.min(99, existing.quantity + 1);
+      const maxQty = this.maxQty(stock, existing.stockQuantity);
+      existing.stockQuantity = maxQty;
+      existing.quantity = Math.min(maxQty, existing.quantity + 1);
     } else {
       current.push({
         productId: product.id,
@@ -38,6 +44,7 @@ export class CartService {
         price: product.price,
         unit: product.unit,
         imageUrl: product.imageUrl,
+        stockQuantity: stock,
         quantity: 1,
       });
     }
@@ -49,10 +56,16 @@ export class CartService {
       this.remove(productId);
       return;
     }
-    const current = this.items().map((item) =>
-      item.productId === productId ? { ...item, quantity: Math.min(99, quantity) } : item,
-    );
+    const current = this.items().map((item) => {
+      if (item.productId !== productId) return item;
+      const maxQty = this.maxQty(item.stockQuantity);
+      return { ...item, quantity: Math.min(maxQty, quantity) };
+    });
     this.persist(current);
+  }
+
+  private maxQty(...values: number[]) {
+    return Math.min(99, Math.max(0, ...values));
   }
 
   remove(productId: string) {
@@ -78,15 +91,20 @@ export class CartService {
       if (!raw) return [];
       const parsed = JSON.parse(raw) as CartItem[];
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter(
-        (x) =>
-          x &&
-          typeof x.productId === 'string' &&
-          typeof x.name === 'string' &&
-          typeof x.price === 'number' &&
-          typeof x.quantity === 'number' &&
-          x.quantity > 0,
-      );
+      return parsed
+        .filter(
+          (x) =>
+            x &&
+            typeof x.productId === 'string' &&
+            typeof x.name === 'string' &&
+            typeof x.price === 'number' &&
+            typeof x.quantity === 'number' &&
+            x.quantity > 0,
+        )
+        .map((x) => ({
+          ...x,
+          stockQuantity: typeof x.stockQuantity === 'number' ? x.stockQuantity : 99,
+        }));
     } catch {
       return [];
     }

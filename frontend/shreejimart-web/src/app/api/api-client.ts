@@ -15,6 +15,7 @@ export interface Product {
   unit: string;
   imageUrl?: string | null;
   isActive: boolean;
+  stockQuantity: number;
 }
 
 export interface ProductPayload {
@@ -24,6 +25,7 @@ export interface ProductPayload {
   unit: string;
   imageUrl?: string | null;
   isActive: boolean;
+  stockQuantity: number;
 }
 
 export interface BulkProductItem {
@@ -32,6 +34,7 @@ export interface BulkProductItem {
   unit: string;
   imageUrl?: string | null;
   isActive: boolean;
+  stockQuantity: number;
 }
 
 export interface BulkCreateProductsPayload {

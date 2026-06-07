@@ -145,7 +145,13 @@ import { resolveImageUrl } from '../utils/image-url';
             <div class="product-tile__media" [style.background]="productImage(p) ? '#fff' : tileColor(p.categoryId)">
               <img *ngIf="productImage(p)" class="product-tile__img" [src]="productImage(p)!" [alt]="p.name" />
               <span *ngIf="!productImage(p)" class="product-tile__emoji">{{ productEmoji(p.name) }}</span>
-              <span class="product-tile__tag" *ngIf="p.isActive">In stock</span>
+              <span
+                class="product-tile__tag"
+                [class.product-tile__tag--out]="stockOf(p) <= 0"
+                *ngIf="p.isActive"
+              >
+                {{ stockOf(p) > 0 ? stockOf(p) + ' left' : 'Out of stock' }}
+              </span>
             </div>
             <div class="product-tile__body">
               <p class="product-tile__unit">{{ p.unit }}</p>
@@ -159,9 +165,10 @@ import { resolveImageUrl } from '../utils/image-url';
                   type="button"
                   class="btn-add"
                   [class.btn-add--added]="addedId() === p.id"
+                  [disabled]="stockOf(p) < 1"
                   (click)="addToCart(p)"
                 >
-                  {{ addedId() === p.id ? 'Added' : 'ADD' }}
+                  {{ stockOf(p) < 1 ? 'OUT' : addedId() === p.id ? 'Added' : 'ADD' }}
                 </button>
               </div>
             </div>
@@ -341,7 +348,12 @@ export class CustomerHomePage {
     return 'linear-gradient(145deg, #f8fafc, #e2e8f0)';
   }
 
+  stockOf(product: Product) {
+    return product.stockQuantity ?? 0;
+  }
+
   addToCart(product: Product) {
+    if (this.stockOf(product) < 1) return;
     this.cart.addProduct(product);
     this.addedId.set(product.id);
     window.setTimeout(() => {

@@ -9,6 +9,7 @@ interface BulkProductRow {
   name: string;
   price: number;
   unit: string;
+  stockQuantity: number;
   isActive: boolean;
 }
 
@@ -73,6 +74,10 @@ type FormMode = 'single' | 'bulk' | null;
             <label>
               Unit *
               <input [(ngModel)]="form.unit" name="unit" required maxlength="32" placeholder="kg, pcs, liter" />
+            </label>
+            <label>
+              Stock quantity *
+              <input [(ngModel)]="form.stockQuantity" name="stockQuantity" type="number" min="0" step="1" required />
             </label>
             <label class="checkbox-label">
               <input [(ngModel)]="form.isActive" name="isActive" type="checkbox" />
@@ -153,6 +158,7 @@ type FormMode = 'single' | 'bulk' | null;
                   <th>Product name *</th>
                   <th>Price (₹) *</th>
                   <th>Unit *</th>
+                  <th>Stock *</th>
                   <th>Active</th>
                   <th></th>
                 </tr>
@@ -187,6 +193,16 @@ type FormMode = 'single' | 'bulk' | null;
                       required
                       maxlength="32"
                       placeholder="pcs"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      [(ngModel)]="row.stockQuantity"
+                      [name]="'bulkStock' + i"
+                      type="number"
+                      min="0"
+                      step="1"
+                      required
                     />
                   </td>
                   <td class="bulk-active-cell">
@@ -229,6 +245,7 @@ type FormMode = 'single' | 'bulk' | null;
                 <th>Name</th>
                 <th>Category</th>
                 <th>Price</th>
+                <th>Stock</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -244,6 +261,15 @@ type FormMode = 'single' | 'bulk' | null;
                 </td>
                 <td>{{ categoryName(p.categoryId) }}</td>
                 <td>₹{{ p.price }}</td>
+                <td>
+                  <span
+                    class="badge"
+                    [class.badge--on]="p.stockQuantity > 5"
+                    [class.badge--off]="p.stockQuantity <= 5"
+                  >
+                    {{ p.stockQuantity }}
+                  </span>
+                </td>
                 <td>
                   <span class="badge" [class.badge--on]="p.isActive" [class.badge--off]="!p.isActive">
                     {{ p.isActive ? 'Active' : 'Hidden' }}
@@ -295,11 +321,19 @@ export class ProductsPage {
   }
 
   private emptyForm(): ProductPayload {
-    return { categoryId: '', name: '', price: 0, unit: 'pcs', imageUrl: null, isActive: true };
+    return {
+      categoryId: '',
+      name: '',
+      price: 0,
+      unit: 'pcs',
+      imageUrl: null,
+      isActive: true,
+      stockQuantity: 0,
+    };
   }
 
   private emptyBulkRow(): BulkProductRow {
-    return { name: '', price: 0, unit: 'pcs', isActive: true };
+    return { name: '', price: 0, unit: 'pcs', stockQuantity: 10, isActive: true };
   }
 
   private refreshCategories() {
@@ -347,6 +381,7 @@ export class ProductsPage {
       unit: p.unit,
       imageUrl: p.imageUrl ?? null,
       isActive: p.isActive,
+      stockQuantity: p.stockQuantity ?? 0,
     };
     this.formMode.set('single');
     this.error.set(null);
@@ -375,7 +410,7 @@ export class ProductsPage {
     return this.bulkRows.filter((row) => {
       const name = row.name.trim();
       const unit = row.unit.trim();
-      return name.length >= 2 && unit.length >= 1 && row.price >= 0;
+      return name.length >= 2 && unit.length >= 1 && row.price >= 0 && row.stockQuantity >= 0;
     });
   }
 
@@ -451,6 +486,7 @@ export class ProductsPage {
           unit: row.unit.trim(),
           imageUrl: null,
           isActive: row.isActive,
+          stockQuantity: row.stockQuantity,
         })),
       })
       .subscribe({
