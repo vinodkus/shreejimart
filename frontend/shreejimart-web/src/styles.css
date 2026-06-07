@@ -745,6 +745,7 @@ a {
 
 .admin-app {
   display: flex;
+  align-items: flex-start;
   min-height: 100vh;
   background: #f1f5f9;
   color: var(--text-primary);
@@ -753,6 +754,10 @@ a {
 .admin-sidebar {
   width: 260px;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  max-height: 100vh;
   background: #0f172a;
   color: #e2e8f0;
   display: flex;
@@ -764,6 +769,7 @@ a {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
   padding: 8px 10px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 16px;
@@ -791,9 +797,14 @@ a {
 }
 
 .admin-sidebar__nav {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
   flex: 1;
+  min-height: 0;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow-y: auto;
 }
 
 .admin-sidebar__nav a {
@@ -825,6 +836,8 @@ a {
 .admin-sidebar__footer {
   display: grid;
   gap: 8px;
+  flex-shrink: 0;
+  margin-top: auto;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -2026,7 +2039,10 @@ a {
   }
 
   .admin-sidebar {
+    position: static;
     width: 100%;
+    height: auto;
+    max-height: none;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
