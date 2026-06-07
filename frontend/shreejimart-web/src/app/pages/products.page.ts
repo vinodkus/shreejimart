@@ -2,31 +2,49 @@ import { Component, inject, signal } from '@angular/core';
 import { NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiClient, Category, Product, ProductPayload } from '../api/api-client';
+import { CategorySearchSelectComponent } from '../components/category-search-select';
 import { resolveImageUrl } from '../utils/image-url';
+
+interface BulkProductRow {
+  name: string;
+  price: number;
+  unit: string;
+  isActive: boolean;
+}
+
+type FormMode = 'single' | 'bulk' | null;
 
 @Component({
   standalone: true,
-  imports: [NgForOf, NgIf, FormsModule],
+  imports: [NgForOf, NgIf, FormsModule, CategorySearchSelectComponent],
   template: `
     <div class="admin-page">
       <div class="admin-page__toolbar">
         <div class="admin-filters">
           <label>
             Filter category
-            <select [(ngModel)]="filterCategoryId" name="filter" (change)="refreshProducts()">
-              <option value="">All categories</option>
-              <option *ngFor="let c of categories()" [value]="c.id">{{ c.name }}</option>
-            </select>
+            <app-category-search-select
+              [(ngModel)]="filterCategoryId"
+              name="filter"
+              [categories]="categories()"
+              [allowEmpty]="true"
+              emptyLabel="All categories"
+              placeholder="Search or filter by category..."
+              (ngModelChange)="refreshProducts()"
+            />
           </label>
           <button type="button" class="btn-secondary" (click)="refreshProducts()">Refresh</button>
         </div>
-        <button type="button" class="btn-primary" (click)="openCreate()">+ Add product</button>
+        <div class="admin-page__actions">
+          <button type="button" class="btn-secondary" (click)="openBulkCreate()">+ Bulk add</button>
+          <button type="button" class="btn-primary" (click)="openCreate()">+ Add product</button>
+        </div>
       </div>
 
       <p class="admin-alert admin-alert--error" *ngIf="error()">{{ error() }}</p>
       <p class="admin-alert admin-alert--success" *ngIf="success()">{{ success() }}</p>
 
-      <div class="admin-card" *ngIf="showForm()">
+      <div class="admin-card" *ngIf="formMode() === 'single'">
         <div class="admin-card__head">
           <h2>{{ editingId() ? 'Edit product' : 'New product' }}</h2>
           <button type="button" class="btn-ghost" (click)="closeForm()">✕</button>
@@ -36,10 +54,13 @@ import { resolveImageUrl } from '../utils/image-url';
           <div class="product-form__grid">
             <label>
               Category *
-              <select [(ngModel)]="form.categoryId" name="categoryId" required>
-                <option value="" disabled>Select category</option>
-                <option *ngFor="let c of categories()" [value]="c.id">{{ c.name }}</option>
-              </select>
+              <app-category-search-select
+                [(ngModel)]="form.categoryId"
+                name="categoryId"
+                required
+                [categories]="categories()"
+                placeholder="Type or select category..."
+              />
             </label>
             <label>
               Product name *
@@ -97,6 +118,108 @@ import { resolveImageUrl } from '../utils/image-url';
         </form>
       </div>
 
+      <div class="admin-card" *ngIf="formMode() === 'bulk'">
+        <div class="admin-card__head">
+          <h2>Bulk add products</h2>
+          <button type="button" class="btn-ghost" (click)="closeForm()">✕</button>
+        </div>
+
+        <p class="hint bulk-hint">
+          Select a category once, add multiple products below, then click <strong>Create all products</strong>.
+        </p>
+
+        <form class="product-form" (ngSubmit)="saveBulk()" #bulkForm="ngForm">
+          <label class="bulk-category">
+            Category *
+            <app-category-search-select
+              [(ngModel)]="bulkCategoryId"
+              name="bulkCategoryId"
+              required
+              [categories]="categories()"
+              placeholder="Type or select category..."
+            />
+          </label>
+
+          <div class="bulk-toolbar">
+            <span>{{ validBulkRows().length }} product(s) ready</span>
+            <button type="button" class="btn-secondary" (click)="addBulkRow()">+ Add row</button>
+          </div>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table bulk-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Product name *</th>
+                  <th>Price (₹) *</th>
+                  <th>Unit *</th>
+                  <th>Active</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of bulkRows; let i = index">
+                  <td>{{ i + 1 }}</td>
+                  <td>
+                    <input
+                      [(ngModel)]="row.name"
+                      [name]="'bulkName' + i"
+                      required
+                      minlength="2"
+                      maxlength="160"
+                      placeholder="Product name"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      [(ngModel)]="row.price"
+                      [name]="'bulkPrice' + i"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </td>
+                  <td>
+                    <input
+                      [(ngModel)]="row.unit"
+                      [name]="'bulkUnit' + i"
+                      required
+                      maxlength="32"
+                      placeholder="pcs"
+                    />
+                  </td>
+                  <td class="bulk-active-cell">
+                    <input [(ngModel)]="row.isActive" [name]="'bulkActive' + i" type="checkbox" />
+                  </td>
+                  <td class="actions-cell">
+                    <button
+                      type="button"
+                      class="btn-ghost"
+                      (click)="removeBulkRow(i)"
+                      [disabled]="bulkRows.length === 1"
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="form-actions">
+            <button
+              type="submit"
+              class="btn-primary"
+              [disabled]="isBusy() || !bulkForm.valid || !bulkCategoryId || validBulkRows().length === 0"
+            >
+              Create all products ({{ validBulkRows().length }})
+            </button>
+            <button type="button" class="btn-secondary" (click)="closeForm()">Cancel</button>
+          </div>
+        </form>
+      </div>
+
       <div class="admin-card">
         <div class="admin-table-wrap">
           <table class="admin-table">
@@ -133,7 +256,7 @@ import { resolveImageUrl } from '../utils/image-url';
               </tr>
             </tbody>
           </table>
-          <p class="empty" *ngIf="products().length === 0">No products yet. Click “Add product”.</p>
+          <p class="empty" *ngIf="products().length === 0">No products yet. Click “Add product” or “Bulk add”.</p>
         </div>
       </div>
     </div>
@@ -147,11 +270,14 @@ export class ProductsPage {
   readonly isBusy = signal(false);
   readonly error = signal<string | null>(null);
   readonly success = signal<string | null>(null);
-  readonly showForm = signal(false);
+  readonly formMode = signal<FormMode>(null);
   readonly editingId = signal<string | null>(null);
 
   filterCategoryId = '';
   form: ProductPayload = this.emptyForm();
+  bulkCategoryId = '';
+  bulkRows: BulkProductRow[] = [this.emptyBulkRow(), this.emptyBulkRow(), this.emptyBulkRow()];
+
   readonly placeholder =
     'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect fill="#e2e8f0" width="80" height="80"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="10">No img</text></svg>');
 
@@ -170,6 +296,10 @@ export class ProductsPage {
 
   private emptyForm(): ProductPayload {
     return { categoryId: '', name: '', price: 0, unit: 'pcs', imageUrl: null, isActive: true };
+  }
+
+  private emptyBulkRow(): BulkProductRow {
+    return { name: '', price: 0, unit: 'pcs', isActive: true };
   }
 
   private refreshCategories() {
@@ -194,8 +324,16 @@ export class ProductsPage {
   openCreate() {
     this.editingId.set(null);
     this.form = this.emptyForm();
-    if (this.categories().length > 0) this.form.categoryId = this.categories()[0].id;
-    this.showForm.set(true);
+    this.formMode.set('single');
+    this.error.set(null);
+    this.success.set(null);
+  }
+
+  openBulkCreate() {
+    this.editingId.set(null);
+    this.bulkCategoryId = this.filterCategoryId || '';
+    this.bulkRows = [this.emptyBulkRow(), this.emptyBulkRow(), this.emptyBulkRow()];
+    this.formMode.set('bulk');
     this.error.set(null);
     this.success.set(null);
   }
@@ -210,14 +348,35 @@ export class ProductsPage {
       imageUrl: p.imageUrl ?? null,
       isActive: p.isActive,
     };
-    this.showForm.set(true);
+    this.formMode.set('single');
     this.error.set(null);
     this.success.set(null);
   }
 
   closeForm() {
-    this.showForm.set(false);
+    this.formMode.set(null);
     this.editingId.set(null);
+  }
+
+  addBulkRow() {
+    if (this.bulkRows.length >= 50) {
+      this.error.set('Maximum 50 products per bulk add.');
+      return;
+    }
+    this.bulkRows = [...this.bulkRows, this.emptyBulkRow()];
+  }
+
+  removeBulkRow(index: number) {
+    if (this.bulkRows.length === 1) return;
+    this.bulkRows = this.bulkRows.filter((_, i) => i !== index);
+  }
+
+  validBulkRows() {
+    return this.bulkRows.filter((row) => {
+      const name = row.name.trim();
+      const unit = row.unit.trim();
+      return name.length >= 2 && unit.length >= 1 && row.price >= 0;
+    });
   }
 
   onImageUrlChange() {
@@ -273,6 +432,36 @@ export class ProductsPage {
       error: (e) => this.error.set(e?.error ?? e?.message ?? 'Save failed'),
       complete: () => this.isBusy.set(false),
     });
+  }
+
+  saveBulk() {
+    const items = this.validBulkRows();
+    if (!this.bulkCategoryId || items.length === 0) return;
+
+    this.isBusy.set(true);
+    this.error.set(null);
+    this.success.set(null);
+
+    this.api
+      .createProductsBulk({
+        categoryId: this.bulkCategoryId,
+        items: items.map((row) => ({
+          name: row.name.trim(),
+          price: row.price,
+          unit: row.unit.trim(),
+          imageUrl: null,
+          isActive: row.isActive,
+        })),
+      })
+      .subscribe({
+        next: (created) => {
+          this.success.set(`${created.length} products created.`);
+          this.closeForm();
+          this.refreshProducts();
+        },
+        error: (e) => this.error.set(e?.error ?? e?.message ?? 'Bulk create failed'),
+        complete: () => this.isBusy.set(false),
+      });
   }
 
   remove(p: Product) {

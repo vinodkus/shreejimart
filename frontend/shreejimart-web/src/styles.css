@@ -757,6 +757,47 @@ a {
   font-size: 1.25rem;
 }
 
+.admin-page__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.bulk-hint {
+  margin: 0 0 16px;
+}
+
+.bulk-category {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.bulk-table input {
+  width: 100%;
+  min-width: 0;
+}
+
+.bulk-active-cell {
+  text-align: center;
+}
+
 .admin-filters {
   display: flex;
   gap: 12px;
@@ -816,6 +857,87 @@ a {
 .admin-page select option {
   background: #fff;
   color: var(--text-primary);
+}
+
+.category-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.category-combobox__input {
+  width: 100%;
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.category-combobox__input:focus {
+  outline: none;
+  border-color: var(--green-500);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.category-combobox__list {
+  position: absolute;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+}
+
+.category-combobox__list li {
+  margin: 0;
+}
+
+.category-combobox__list button {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.category-combobox__list button:hover,
+.category-combobox__list button:focus {
+  background: var(--green-100);
+  color: var(--green-700);
+}
+
+.category-combobox__empty {
+  position: absolute;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-md);
+}
+
+.category-combobox--disabled {
+  opacity: 0.6;
 }
 
 .btn-primary,

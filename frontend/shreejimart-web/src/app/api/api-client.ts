@@ -26,6 +26,19 @@ export interface ProductPayload {
   isActive: boolean;
 }
 
+export interface BulkProductItem {
+  name: string;
+  price: number;
+  unit: string;
+  imageUrl?: string | null;
+  isActive: boolean;
+}
+
+export interface BulkCreateProductsPayload {
+  categoryId: string;
+  items: BulkProductItem[];
+}
+
 export interface OrderLine {
   id: string;
   productId: string;
@@ -80,6 +93,10 @@ export class ApiClient {
 
   createProduct(payload: ProductPayload) {
     return this.http.post<Product>(`${this.baseUrl}/api/products`, payload);
+  }
+
+  createProductsBulk(payload: BulkCreateProductsPayload) {
+    return this.http.post<Product[]>(`${this.baseUrl}/api/products/bulk`, payload);
   }
 
   updateProduct(id: string, payload: ProductPayload) {

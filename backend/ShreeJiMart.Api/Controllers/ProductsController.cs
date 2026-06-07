@@ -45,6 +45,71 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
         bool IsActive
     );
 
+    public sealed record BulkProductItemRequest(
+        string Name,
+        decimal Price,
+        string Unit,
+        string? ImageUrl,
+        bool IsActive
+    );
+
+    public sealed record BulkCreateProductsRequest(
+        Guid CategoryId,
+        List<BulkProductItemRequest> Items
+    );
+
+    [HttpPost("bulk")]
+    public async Task<ActionResult<List<Product>>> BulkCreate(
+        [FromBody] BulkCreateProductsRequest request,
+        CancellationToken ct)
+    {
+        if (request.Items is null || request.Items.Count == 0)
+            return BadRequest("At least one product is required.");
+
+        if (request.Items.Count > 50)
+            return BadRequest("Maximum 50 products per bulk request.");
+
+        if (request.CategoryId == Guid.Empty)
+            return BadRequest("CategoryId is required.");
+
+        var categoryExists = await db.Categories.AnyAsync(x => x.Id == request.CategoryId, ct);
+        if (!categoryExists)
+            return BadRequest("Category does not exist.");
+
+        var entities = new List<Product>();
+
+        for (var i = 0; i < request.Items.Count; i++)
+        {
+            var item = request.Items[i];
+            var validation = await ValidateAndBuildAsync(
+                request.CategoryId,
+                item.Name,
+                item.Price,
+                item.Unit,
+                item.ImageUrl,
+                ct);
+
+            if (validation.Error is not null)
+                return BadRequest($"Row {i + 1}: check name (2-160 chars), unit, and price.");
+
+            entities.Add(new Product
+            {
+                Id = Guid.NewGuid(),
+                CategoryId = request.CategoryId,
+                Name = validation.Name!,
+                Price = item.Price,
+                Unit = validation.Unit!,
+                ImageUrl = validation.ImageUrl,
+                IsActive = item.IsActive,
+            });
+        }
+
+        db.Products.AddRange(entities);
+        await db.SaveChangesAsync(ct);
+
+        return Ok(entities);
+    }
+
     [HttpPost]
     public async Task<ActionResult<Product>> Create([FromBody] CreateProductRequest request, CancellationToken ct)
     {
