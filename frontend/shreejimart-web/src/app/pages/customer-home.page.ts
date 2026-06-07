@@ -2,6 +2,10 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiClient, Category, Product } from '../api/api-client';
+
+type SearchSuggestion =
+  | { kind: 'product'; product: Product }
+  | { kind: 'category'; category: Category };
 import { CartService } from '../cart/cart.service';
 import { resolveImageUrl } from '../utils/image-url';
 
@@ -19,14 +23,63 @@ import { resolveImageUrl } from '../utils/image-url';
         <div class="hero-banner__badge">FREE delivery above ₹199</div>
       </section>
 
-      <div class="search-bar">
-        <span class="search-bar__icon" aria-hidden="true">⌕</span>
-        <input
-          type="search"
-          placeholder="Search atta, milk, fruits..."
-          [(ngModel)]="searchText"
-          name="search"
-        />
+      <div class="search-bar-wrap">
+        <div class="search-bar">
+          <span class="search-bar__icon" aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            placeholder="Search atta, milk, fruits..."
+            [ngModel]="searchText()"
+            (ngModelChange)="onSearchInput($event)"
+            (focus)="onSearchFocus()"
+            (blur)="onSearchBlur()"
+            name="search"
+            autocomplete="off"
+            aria-autocomplete="list"
+            [attr.aria-expanded]="showSuggestions()"
+          />
+          <button
+            type="button"
+            class="search-bar__clear"
+            *ngIf="searchText()"
+            (mousedown)="clearSearch($event)"
+            aria-label="Clear search"
+          >
+            ✕
+          </button>
+        </div>
+
+        <ul class="search-suggestions" *ngIf="showSuggestions() && searchSuggestions().length > 0">
+          <li *ngFor="let item of searchSuggestions()">
+            <button
+              type="button"
+              class="search-suggestion"
+              (mousedown)="pickSuggestion(item)"
+            >
+              <span class="search-suggestion__icon" *ngIf="item.kind === 'category'">
+                {{ categoryIcon(item.category.name) }}
+              </span>
+              <span class="search-suggestion__thumb" *ngIf="item.kind === 'product'">
+                <img *ngIf="productImage(item.product)" [src]="productImage(item.product)!" [alt]="" />
+                <span *ngIf="!productImage(item.product)">{{ productEmoji(item.product.name) }}</span>
+              </span>
+              <span class="search-suggestion__body">
+                <strong>{{ item.kind === 'product' ? item.product.name : item.category.name }}</strong>
+                <small>
+                  {{
+                    item.kind === 'product'
+                      ? categoryName(item.product.categoryId) + ' · ₹' + item.product.price
+                      : 'Category'
+                  }}
+                </small>
+              </span>
+            </button>
+          </li>
+        </ul>
+
+        <p class="search-suggestions__empty" *ngIf="showSuggestions() && searchText().trim() && searchSuggestions().length === 0">
+          No suggestions for "{{ searchText().trim() }}"
+        </p>
       </div>
 
       <section class="categories-section">
@@ -129,13 +182,20 @@ export class CustomerHomePage {
   readonly showAllCategories = signal(false);
 
   filterCategoryId = '';
-  searchText = '';
+  readonly searchText = signal('');
 
   private readonly categoryCollapseThreshold = 10;
 
   readonly filteredProducts = computed(() => {
-    const q = this.searchText.trim().toLowerCase();
-    return this.products().filter((p) => !q || p.name.toLowerCase().includes(q));
+    const q = this.searchText().trim().toLowerCase();
+    if (!q) return this.products();
+
+    return this.products().filter((p) => {
+      const name = p.name.toLowerCase();
+      const unit = p.unit.toLowerCase();
+      const category = this.categoryName(p.categoryId).toLowerCase();
+      return name.includes(q) || unit.includes(q) || category.includes(q);
+    });
   });
 
   constructor() {
@@ -147,9 +207,9 @@ export class CustomerHomePage {
   }
 
   sectionTitle() {
-    if (this.filterCategoryId) {
-      return this.categoryName(this.filterCategoryId);
-    }
+    const q = this.searchText().trim();
+    if (q) return `Results for "${q}"`;
+    if (this.filterCategoryId) return this.categoryName(this.filterCategoryId);
     return 'Popular picks';
   }
 
