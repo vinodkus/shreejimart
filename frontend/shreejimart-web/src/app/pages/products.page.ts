@@ -11,6 +11,7 @@ interface BulkProductRow {
   unit: string;
   stockQuantity: number;
   isActive: boolean;
+  imageUrl: string | null;
 }
 
 type FormMode = 'single' | 'bulk' | null;
@@ -131,6 +132,7 @@ type FormMode = 'single' | 'bulk' | null;
 
         <p class="hint bulk-hint">
           Select a category once, add multiple products below, then click <strong>Create all products</strong>.
+          Images are optional — upload a photo or paste a URL per row.
         </p>
 
         <form class="product-form" (ngSubmit)="saveBulk()" #bulkForm="ngForm">
@@ -155,6 +157,7 @@ type FormMode = 'single' | 'bulk' | null;
               <thead>
                 <tr>
                   <th>#</th>
+                  <th>Image</th>
                   <th>Product name *</th>
                   <th>Price (₹) *</th>
                   <th>Unit *</th>
@@ -166,6 +169,35 @@ type FormMode = 'single' | 'bulk' | null;
               <tbody>
                 <tr *ngFor="let row of bulkRows; let i = index">
                   <td>{{ i + 1 }}</td>
+                  <td class="bulk-image-cell">
+                    <div class="bulk-image-cell__preview">
+                      <img *ngIf="bulkRowPreview(row)" [src]="bulkRowPreview(row)!" alt="" />
+                      <span *ngIf="!bulkRowPreview(row)" class="bulk-image-cell__empty">No img</span>
+                    </div>
+                    <label class="btn-upload btn-upload--compact">
+                      Browse image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        (change)="onBulkFileSelected($event, i)"
+                        hidden
+                      />
+                    </label>
+                    <input
+                      [(ngModel)]="row.imageUrl"
+                      [name]="'bulkImage' + i"
+                      placeholder="Or image URL"
+                      class="bulk-image-url"
+                    />
+                    <button
+                      type="button"
+                      class="bulk-image-clear"
+                      *ngIf="row.imageUrl"
+                      (click)="clearBulkImage(i)"
+                    >
+                      Clear
+                    </button>
+                  </td>
                   <td>
                     <input
                       [(ngModel)]="row.name"
@@ -333,7 +365,7 @@ export class ProductsPage {
   }
 
   private emptyBulkRow(): BulkProductRow {
-    return { name: '', price: 0, unit: 'pcs', stockQuantity: 10, isActive: true };
+    return { name: '', price: 0, unit: 'pcs', stockQuantity: 10, isActive: true, imageUrl: null };
   }
 
   private refreshCategories() {
@@ -422,6 +454,38 @@ export class ProductsPage {
     this.form.imageUrl = null;
   }
 
+  bulkRowPreview(row: BulkProductRow) {
+    return resolveImageUrl(row.imageUrl);
+  }
+
+  clearBulkImage(index: number) {
+    this.bulkRows[index].imageUrl = null;
+    this.bulkRows = [...this.bulkRows];
+  }
+
+  onBulkFileSelected(event: Event, index: number) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    this.isBusy.set(true);
+    this.error.set(null);
+    this.api.uploadProductImage(file).subscribe({
+      next: (res) => {
+        this.bulkRows[index].imageUrl = res.url;
+        this.bulkRows = [...this.bulkRows];
+        this.success.set(`Image uploaded for row ${index + 1}.`);
+        this.isBusy.set(false);
+        input.value = '';
+      },
+      error: (e) => {
+        this.error.set(e?.error ?? 'Image upload failed.');
+        this.isBusy.set(false);
+        input.value = '';
+      },
+    });
+  }
+
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -484,7 +548,7 @@ export class ProductsPage {
           name: row.name.trim(),
           price: row.price,
           unit: row.unit.trim(),
-          imageUrl: null,
+          imageUrl: row.imageUrl?.trim() || null,
           isActive: row.isActive,
           stockQuantity: row.stockQuantity,
         })),

@@ -142,7 +142,11 @@ import { resolveImageUrl } from '../utils/image-url';
 
         <div class="product-grid">
           <article class="product-tile" *ngFor="let p of filteredProducts()">
-            <div class="product-tile__media" [style.background]="productImage(p) ? '#fff' : tileColor(p.categoryId)">
+            <div
+              class="product-tile__media"
+              [class.product-tile__media--photo]="!!productImage(p)"
+              [style.background]="productImage(p) ? null : tileColor(p.categoryId)"
+            >
               <img *ngIf="productImage(p)" class="product-tile__img" [src]="productImage(p)!" [alt]="p.name" />
               <span *ngIf="!productImage(p)" class="product-tile__emoji">{{ productEmoji(p.name) }}</span>
               <span
@@ -154,9 +158,8 @@ import { resolveImageUrl } from '../utils/image-url';
               </span>
             </div>
             <div class="product-tile__body">
-              <p class="product-tile__unit">{{ p.unit }}</p>
               <h3 class="product-tile__name">{{ p.name }}</h3>
-              <p class="product-tile__category">{{ categoryName(p.categoryId) }}</p>
+              <p class="product-tile__meta">{{ categoryName(p.categoryId) }} · {{ p.unit }}</p>
               <div class="product-tile__footer">
                 <div class="product-tile__price">
                   <span class="price-now">₹{{ p.price }}</span>
