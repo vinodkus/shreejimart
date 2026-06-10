@@ -1,13 +1,16 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApiClient, Category, Product } from '../api/api-client';
+import { CartService } from '../cart/cart.service';
+import { resolveImageUrl } from '../utils/image-url';
+import { categoryLabel, categoryNameById, topLevelCategories } from '../utils/category-utils';
+import { shopCategoryIcon, shopProductEmoji, shopTileColor } from '../utils/product-display.utils';
 
 type SearchSuggestion =
   | { kind: 'product'; product: Product }
   | { kind: 'category'; category: Category };
-import { CartService } from '../cart/cart.service';
-import { resolveImageUrl } from '../utils/image-url';
 
 @Component({
   standalone: true,
@@ -64,7 +67,7 @@ import { resolveImageUrl } from '../utils/image-url';
                 <span *ngIf="!productImage(item.product)">{{ productEmoji(item.product.name) }}</span>
               </span>
               <span class="search-suggestion__body">
-                <strong>{{ item.kind === 'product' ? item.product.name : item.category.name }}</strong>
+                <strong>{{ item.kind === 'category' ? suggestionCategoryLabel(item.category) : item.product.name }}</strong>
                 <small>
                   {{
                     item.kind === 'product'
@@ -82,16 +85,9 @@ import { resolveImageUrl } from '../utils/image-url';
         </p>
       </div>
 
-      <section class="categories-section">
+      <section class="categories-section" id="categories">
         <div class="section-head section-head--categories">
           <h2>Shop by category</h2>
-          <label class="category-picker">
-            <span class="category-picker__label">Jump to</span>
-            <select [ngModel]="filterCategoryId" (ngModelChange)="selectCategory($event)" name="categoryPicker">
-              <option value="">All categories</option>
-              <option *ngFor="let c of categories()" [value]="c.id">{{ c.name }}</option>
-            </select>
-          </label>
         </div>
 
         <div
@@ -101,18 +97,8 @@ import { resolveImageUrl } from '../utils/image-url';
           <button
             type="button"
             class="category-chip category-chip--compact"
-            [class.category-chip--active]="filterCategoryId === ''"
-            (click)="selectCategory('')"
-          >
-            <span class="category-chip__icon">🛒</span>
-            <span class="category-chip__text">All</span>
-          </button>
-          <button
-            type="button"
-            class="category-chip category-chip--compact"
-            *ngFor="let c of categories()"
-            [class.category-chip--active]="filterCategoryId === c.id"
-            (click)="selectCategory(c.id)"
+            *ngFor="let c of topLevel()"
+            (click)="openCategory(c.id)"
           >
             <span class="category-chip__icon">{{ categoryIcon(c.name) }}</span>
             <span class="category-chip__text">{{ c.name }}</span>
@@ -125,19 +111,18 @@ import { resolveImageUrl } from '../utils/image-url';
           *ngIf="hasManyCategories()"
           (click)="toggleCategories()"
         >
-          {{ showAllCategories() ? 'Show fewer categories' : 'View all ' + categories().length + ' categories' }}
+          {{ showAllCategories() ? 'Show fewer categories' : 'View all ' + topLevel().length + ' categories' }}
         </button>
       </section>
 
-      <section class="products-section">
+      <section class="products-section" *ngIf="isSearching()">
         <div class="section-head">
           <h2>{{ sectionTitle() }}</h2>
           <span class="section-head__count">{{ filteredProducts().length }} items</span>
         </div>
 
-        <p class="shop-alert" *ngIf="error()">{{ error() }}</p>
-        <p class="shop-empty" *ngIf="!error() && filteredProducts().length === 0">
-          No products found. Try another category or search.
+        <p class="shop-empty" *ngIf="filteredProducts().length === 0">
+          No products found. Try another search.
         </p>
 
         <div class="product-grid">
@@ -184,27 +169,26 @@ import { resolveImageUrl } from '../utils/image-url';
 export class CustomerHomePage {
   private readonly api = inject(ApiClient);
   private readonly cart = inject(CartService);
+  private readonly router = inject(Router);
 
   readonly categories = signal<Category[]>([]);
-  readonly products = signal<Product[]>([]);
   readonly allProducts = signal<Product[]>([]);
-  readonly error = signal<string | null>(null);
   readonly addedId = signal<string | null>(null);
   readonly showAllCategories = signal(false);
   readonly showSuggestions = signal(false);
-
-  filterCategoryId = '';
   readonly searchText = signal('');
+
+  readonly topLevel = computed(() => topLevelCategories(this.categories()));
 
   private readonly categoryCollapseThreshold = 10;
   private readonly maxSuggestions = 8;
 
+  readonly isSearching = computed(() => this.searchText().trim().length > 0);
+
   readonly filteredProducts = computed(() => {
     const q = this.searchText().trim().toLowerCase();
-    const source = q ? this.allProducts() : this.products();
-    if (!q) return source;
-
-    return source.filter((p) => this.matchesQuery(p, q));
+    if (!q) return [];
+    return this.allProducts().filter((p) => this.matchesQuery(p, q));
   });
 
   readonly searchSuggestions = computed(() => {
@@ -212,7 +196,7 @@ export class CustomerHomePage {
     if (!q) return [] as SearchSuggestion[];
 
     const categoryItems: SearchSuggestion[] = this.categories()
-      .filter((c) => c.name.toLowerCase().includes(q))
+      .filter((c) => categoryLabel(this.categories(), c).toLowerCase().includes(q))
       .slice(0, 3)
       .map((category) => ({ kind: 'category' as const, category }));
 
@@ -227,16 +211,9 @@ export class CustomerHomePage {
   constructor() {
     this.api.listCategories().subscribe({
       next: (items) => this.categories.set(items),
-      error: (e) => this.error.set(e?.message ?? 'Failed to load categories'),
     });
-    this.loadAllProducts();
-    this.refreshProducts();
-  }
-
-  private loadAllProducts() {
     this.api.listProducts().subscribe({
       next: (items) => this.allProducts.set(items.filter((p) => p.isActive)),
-      error: (e) => this.error.set(e?.message ?? 'Failed to load products'),
     });
   }
 
@@ -270,7 +247,7 @@ export class CustomerHomePage {
     if (item.kind === 'category') {
       this.searchText.set('');
       this.showSuggestions.set(false);
-      this.selectCategory(item.category.id);
+      this.openCategory(item.category.id);
       return;
     }
 
@@ -280,75 +257,43 @@ export class CustomerHomePage {
 
   sectionTitle() {
     const q = this.searchText().trim();
-    if (q) return `Results for "${q}"`;
-    if (this.filterCategoryId) return this.categoryName(this.filterCategoryId);
-    return 'Popular picks';
+    return q ? `Results for "${q}"` : 'Popular picks';
   }
 
   hasManyCategories() {
-    return this.categories().length > this.categoryCollapseThreshold;
+    return this.topLevel().length > this.categoryCollapseThreshold;
   }
 
   toggleCategories() {
     this.showAllCategories.update((v) => !v);
   }
 
-  selectCategory(id: string) {
-    this.filterCategoryId = id;
-    this.refreshProducts();
-  }
-
-  refreshProducts() {
-    this.error.set(null);
-    this.api.listProducts(this.filterCategoryId || undefined).subscribe({
-      next: (items) => this.products.set(items.filter((p) => p.isActive)),
-      error: (e) => this.error.set(e?.message ?? 'Failed to load products'),
-    });
+  openCategory(id: string) {
+    this.router.navigate(['/category', id]);
   }
 
   categoryName(categoryId: string) {
-    return this.categories().find((c) => c.id === categoryId)?.name ?? 'Grocery';
+    return categoryNameById(this.categories(), categoryId);
+  }
+
+  suggestionCategoryLabel(category: Category) {
+    return categoryLabel(this.categories(), category);
+  }
+
+  categoryIcon(name: string) {
+    return shopCategoryIcon(name);
   }
 
   productImage(p: Product) {
     return resolveImageUrl(p.imageUrl);
   }
 
-  categoryIcon(name: string) {
-    const n = name.toLowerCase();
-    if (n.includes('fruit')) return '🍎';
-    if (n.includes('veget')) return '🥬';
-    if (n.includes('dairy') || n.includes('milk')) return '🥛';
-    if (n.includes('snack') || n.includes('biscuit') || n.includes('chocolate')) return '🍪';
-    if (n.includes('bever') || n.includes('drink')) return '🥤';
-    if (n.includes('bakery') || n.includes('bread')) return '🍞';
-    if (n.includes('breakfast') || n.includes('cereal')) return '🥣';
-    if (n.includes('baby')) return '🍼';
-    if (n.includes('cosmetic') || n.includes('beauty')) return '💄';
-    if (n.includes('dry fruit') || n.includes('nut')) return '🥜';
-    if (n.includes('frozen')) return '🧊';
-    if (n.includes('rice') || n.includes('atta') || n.includes('grain')) return '🌾';
-    if (n.includes('spice')) return '🌶️';
-    if (n.includes('oil')) return '🫒';
-    return '🛍️';
-  }
-
   productEmoji(name: string) {
-    const n = name.toLowerCase();
-    if (n.includes('banana')) return '🍌';
-    if (n.includes('apple')) return '🍎';
-    if (n.includes('milk')) return '🥛';
-    if (n.includes('potato')) return '🥔';
-    if (n.includes('tomato')) return '🍅';
-    return '🥗';
+    return shopProductEmoji(name);
   }
 
   tileColor(categoryId: string) {
-    const name = this.categoryName(categoryId).toLowerCase();
-    if (name.includes('fruit')) return 'linear-gradient(145deg, #fff4e6, #ffe8cc)';
-    if (name.includes('veget')) return 'linear-gradient(145deg, #ecfdf3, #d1fae5)';
-    if (name.includes('dairy')) return 'linear-gradient(145deg, #eff6ff, #dbeafe)';
-    return 'linear-gradient(145deg, #f8fafc, #e2e8f0)';
+    return shopTileColor(this.categoryName(categoryId));
   }
 
   stockOf(product: Product) {

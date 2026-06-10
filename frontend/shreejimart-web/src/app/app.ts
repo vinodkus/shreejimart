@@ -4,6 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs';
 import { CartService } from './cart/cart.service';
+import { CustomerAuthService } from './auth/customer-auth.service';
 
 @Component({
   selector: 'app-root',
@@ -14,6 +15,7 @@ import { CartService } from './cart/cart.service';
 export class App {
   private readonly router = inject(Router);
   private readonly cart = inject(CartService);
+  readonly customerAuth = inject(CustomerAuthService);
 
   readonly cartCount = this.cart.itemCount;
 

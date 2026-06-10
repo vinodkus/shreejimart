@@ -7,6 +7,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 {
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderLine> OrderLines => Set<OrderLine>();
 
@@ -18,6 +19,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Id).HasColumnName("id");
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
+            entity.Property(x => x.ParentId).HasColumnName("parent_id");
+
+            entity.HasOne(x => x.Parent)
+                .WithMany(x => x.Children)
+                .HasForeignKey(x => x.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Product>(entity =>
@@ -39,12 +46,33 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.ToTable("customers");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.AuthProvider).HasColumnName("auth_provider").HasMaxLength(20).IsRequired();
+            entity.Property(x => x.GoogleSub).HasColumnName("google_sub").HasMaxLength(128);
+            entity.Property(x => x.Email).HasColumnName("email").HasMaxLength(200);
+            entity.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(120);
+            entity.Property(x => x.Phone).HasColumnName("phone").HasMaxLength(15);
+            entity.Property(x => x.DefaultAddress).HasColumnName("default_address").HasMaxLength(500);
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.LastLoginAt).HasColumnName("last_login_at");
+        });
+
         modelBuilder.Entity<Order>(entity =>
         {
             entity.ToTable("orders");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.CustomerId).HasColumnName("customer_id");
             entity.Property(x => x.CustomerName).HasColumnName("customer_name").HasMaxLength(120);
+
+            entity.HasOne(x => x.Customer)
+                .WithMany(x => x.Orders)
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
             entity.Property(x => x.Phone).HasColumnName("phone").HasMaxLength(15).IsRequired();
             entity.Property(x => x.DeliveryAddress).HasColumnName("delivery_address").HasMaxLength(500).IsRequired();
             entity.Property(x => x.PaymentMethod).HasColumnName("payment_method").HasMaxLength(20).IsRequired();

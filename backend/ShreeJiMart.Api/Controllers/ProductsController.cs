@@ -15,7 +15,23 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
         var query = db.Products.AsNoTracking().OrderBy(x => x.Name).AsQueryable();
 
         if (categoryId is not null && categoryId != Guid.Empty)
-            query = query.Where(x => x.CategoryId == categoryId);
+        {
+            var childIds = await db.Categories
+                .AsNoTracking()
+                .Where(x => x.ParentId == categoryId)
+                .Select(x => x.Id)
+                .ToListAsync(ct);
+
+            if (childIds.Count > 0)
+            {
+                var categoryIds = childIds.Append(categoryId.Value).ToList();
+                query = query.Where(x => categoryIds.Contains(x.CategoryId));
+            }
+            else
+            {
+                query = query.Where(x => x.CategoryId == categoryId);
+            }
+        }
 
         return Ok(await query.ToListAsync(ct));
     }

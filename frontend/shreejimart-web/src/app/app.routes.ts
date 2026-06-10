@@ -1,13 +1,17 @@
 import { Routes } from '@angular/router';
 import { adminGuard } from './auth/admin.guard';
 import { CustomerHomePage } from './pages/customer-home.page';
+import { CategoryProductsPage } from './pages/category-products.page';
 import { CartPage } from './pages/cart.page';
 import { CheckoutPage } from './pages/checkout.page';
 import { OrderPlacedPage } from './pages/order-placed.page';
 import { AdminLoginPage } from './pages/admin-login.page';
+import { CustomerLoginPage } from './pages/customer-login.page';
 
 export const routes: Routes = [
   { path: '', component: CustomerHomePage },
+  { path: 'category/:id', component: CategoryProductsPage },
+  { path: 'login', component: CustomerLoginPage },
   { path: 'cart', component: CartPage },
   { path: 'checkout', component: CheckoutPage },
   { path: 'order-placed', component: OrderPlacedPage },

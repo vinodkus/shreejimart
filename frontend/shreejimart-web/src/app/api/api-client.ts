@@ -5,6 +5,8 @@ import { environment } from '../../environments/environment';
 export interface Category {
   id: string;
   name: string;
+  parentId?: string | null;
+  parentName?: string | null;
 }
 
 export interface Product {
@@ -80,11 +82,11 @@ export class ApiClient {
     return this.http.get<Category[]>(`${this.baseUrl}/api/categories`);
   }
 
-  createCategory(payload: { name: string }) {
+  createCategory(payload: { name: string; parentId?: string | null }) {
     return this.http.post<Category>(`${this.baseUrl}/api/categories`, payload);
   }
 
-  updateCategory(id: string, payload: { name: string }) {
+  updateCategory(id: string, payload: { name: string; parentId?: string | null }) {
     return this.http.put<Category>(`${this.baseUrl}/api/categories/${id}`, payload);
   }
 

@@ -9,6 +9,7 @@ import {
 import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { NgForOf, NgIf } from '@angular/common';
 import { Category } from '../api/api-client';
+import { categoryLabel } from '../utils/category-utils';
 
 @Component({
   standalone: true,
@@ -40,7 +41,7 @@ import { Category } from '../api/api-client';
           <button type="button" (mousedown)="pick('', emptyLabel)">{{ emptyLabel }}</button>
         </li>
         <li *ngFor="let c of filteredCategories()">
-          <button type="button" (mousedown)="pick(c.id, c.name)">{{ c.name }}</button>
+          <button type="button" (mousedown)="pick(c.id, displayName(c))">{{ displayName(c) }}</button>
         </li>
       </ul>
       <p class="category-combobox__empty" *ngIf="dropdownOpen() && searchText.trim() && filteredCategories().length === 0 && !matchesEmpty()">
@@ -89,7 +90,11 @@ export class CategorySearchSelectComponent implements ControlValueAccessor, OnCh
     if (!q || (this.allowEmpty && q === this.emptyLabel.toLowerCase())) {
       return this.categories;
     }
-    return this.categories.filter((c) => c.name.toLowerCase().includes(q));
+    return this.categories.filter((c) => this.displayName(c).toLowerCase().includes(q));
+  }
+
+  displayName(category: Category) {
+    return categoryLabel(this.categories, category);
   }
 
   matchesEmpty() {
@@ -99,9 +104,9 @@ export class CategorySearchSelectComponent implements ControlValueAccessor, OnCh
 
   onSearchChange(value: string) {
     this.dropdownOpen.set(true);
-    const exact = this.categories.find((c) => c.name.toLowerCase() === value.trim().toLowerCase());
+    const exact = this.categories.find((c) => this.displayName(c).toLowerCase() === value.trim().toLowerCase());
     if (exact) {
-      this.pick(exact.id, exact.name, false);
+      this.pick(exact.id, this.displayName(exact), false);
       return;
     }
     if (this.allowEmpty && !value.trim()) {
@@ -138,6 +143,6 @@ export class CategorySearchSelectComponent implements ControlValueAccessor, OnCh
       return;
     }
     const cat = this.categories.find((c) => c.id === this.categoryId);
-    this.searchText = cat?.name ?? '';
+    this.searchText = cat ? this.displayName(cat) : '';
   }
 }

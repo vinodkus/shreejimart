@@ -22,7 +22,10 @@
    ```
    Or set `DATABASE_URL` in VS 2022 → **ShreeJiMart.Api** → Properties → Debug → Environment variables.
 3. In Neon **SQL Editor**, run `database/neon-full-schema.sql` (creates `categories`, `products`, `orders`, `order_lines`).
-4. If the database already exists, also run `database/add-stock-column.sql` for product stock tracking.
+4. If the database already exists, also run:
+   - `database/add-stock-column.sql` for product stock tracking
+   - `database/add-category-parent-id.sql` for subcategories
+   - `database/add-customers-auth.sql` for Google / guest customer login
 
 The API loads `.env` on startup and uses SSL for Neon automatically.
 
@@ -46,6 +49,25 @@ npm start
 ```
 
 Open `http://localhost:4200`.
+
+## Customer login (Google + Guest)
+
+1. Customer opens **Login** in the shop header (`/login`).
+2. **Sign in with Google** — requires Google OAuth client ID on API and Angular.
+3. **Continue as Guest** — creates a guest session (JWT) without Google.
+4. Checkout still works without login; signed-in customers get name/phone/address prefilled.
+
+### Google OAuth setup
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → Create **OAuth client ID** (Web application).
+2. **Authorized JavaScript origins:** `http://localhost:4200`, `https://test.sanatini.com` (your UI URL).
+3. Copy the client ID to:
+   - API `.env`: `GOOGLE_CLIENT_ID=...`
+   - Angular `environment.ts` / `environment.production.ts`: `googleClientId: '...'`
+4. Set `CUSTOMER_JWT_SECRET` in API `.env` (long random string).
+5. Run `database/add-customers-auth.sql` in Neon if the DB already exists.
+
+API: `POST /api/customer-auth/google`, `POST /api/customer-auth/guest`, `GET /api/customer-auth/me`, `GET /api/orders/mine`.
 
 ## Guest checkout (cash on delivery)
 

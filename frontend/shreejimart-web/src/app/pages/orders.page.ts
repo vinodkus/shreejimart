@@ -1,4 +1,5 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, effect, inject, OnInit, signal } from '@angular/core';
+import { AdminOrderAlertService } from '../admin/admin-order-alert.service';
 import { DatePipe, NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiClient, Order } from '../api/api-client';
@@ -68,6 +69,7 @@ const STATUS_OPTIONS = [
 })
 export class OrdersPage implements OnInit {
   private readonly api = inject(ApiClient);
+  private readonly orderAlerts = inject(AdminOrderAlertService);
 
   readonly orders = signal<Order[]>([]);
   readonly error = signal<string | null>(null);
@@ -75,6 +77,12 @@ export class OrdersPage implements OnInit {
   readonly updatingId = signal<string | null>(null);
 
   readonly statusOptions = STATUS_OPTIONS;
+
+  constructor() {
+    effect(() => {
+      if (this.orderAlerts.lastNewOrderAt() > 0) this.refresh();
+    });
+  }
 
   ngOnInit() {
     this.refresh();

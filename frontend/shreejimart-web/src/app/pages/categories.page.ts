@@ -1,7 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiClient, Category } from '../api/api-client';
+import { categoryLabel, parentCategoryOptions } from '../utils/category-utils';
 
 @Component({
   standalone: true,
@@ -13,17 +14,25 @@ import { ApiClient, Category } from '../api/api-client';
       </div>
 
       <div class="admin-card" *ngIf="!editingId()">
-        <form class="inline-form" (ngSubmit)="create()" #f="ngForm">
+        <form class="category-form" (ngSubmit)="create()" #f="ngForm">
           <input
             name="name"
             required
             minlength="2"
             maxlength="120"
-            placeholder="New category name (e.g. Fruits)"
+            placeholder="Category name (e.g. Fruits)"
             [(ngModel)]="name"
           />
+          <label class="category-form__parent">
+            Parent category
+            <select [(ngModel)]="parentId" name="parentId">
+              <option value="">None (top-level)</option>
+              <option *ngFor="let p of parentOptions()" [value]="p.id">{{ p.name }}</option>
+            </select>
+          </label>
           <button type="submit" class="btn-primary" [disabled]="isBusy() || !f.valid">Add category</button>
         </form>
+        <p class="hint">Leave parent empty for a main category, or pick a parent to create a subcategory.</p>
       </div>
 
       <div class="admin-card" *ngIf="editingId()">
@@ -31,7 +40,7 @@ import { ApiClient, Category } from '../api/api-client';
           <h2>Edit category</h2>
           <button type="button" class="btn-ghost" (click)="cancelEdit()">✕</button>
         </div>
-        <form class="inline-form" (ngSubmit)="saveEdit()" #editForm="ngForm">
+        <form class="category-form" (ngSubmit)="saveEdit()" #editForm="ngForm">
           <input
             name="editName"
             required
@@ -39,6 +48,13 @@ import { ApiClient, Category } from '../api/api-client';
             maxlength="120"
             [(ngModel)]="editName"
           />
+          <label class="category-form__parent">
+            Parent category
+            <select [(ngModel)]="editParentId" name="editParentId">
+              <option value="">None (top-level)</option>
+              <option *ngFor="let p of editParentOptions()" [value]="p.id">{{ p.name }}</option>
+            </select>
+          </label>
           <button type="submit" class="btn-primary" [disabled]="isBusy() || !editForm.valid">Save</button>
           <button type="button" class="btn-secondary" (click)="cancelEdit()">Cancel</button>
         </form>
@@ -53,7 +69,8 @@ import { ApiClient, Category } from '../api/api-client';
             <thead>
               <tr>
                 <th>#</th>
-                <th>Category name</th>
+                <th>Category</th>
+                <th>Type</th>
                 <th>ID</th>
                 <th></th>
               </tr>
@@ -61,7 +78,14 @@ import { ApiClient, Category } from '../api/api-client';
             <tbody>
               <tr *ngFor="let c of categories(); let i = index">
                 <td>{{ i + 1 }}</td>
-                <td><strong>{{ c.name }}</strong></td>
+                <td>
+                  <strong [class.category-name--sub]="c.parentId">{{ displayName(c) }}</strong>
+                </td>
+                <td>
+                  <span class="badge" [class.badge--on]="!c.parentId" [class.badge--off]="!!c.parentId">
+                    {{ c.parentId ? 'Subcategory' : 'Main' }}
+                  </span>
+                </td>
                 <td><code class="id-code">{{ c.id }}</code></td>
                 <td class="actions-cell">
                   <button type="button" class="btn-ghost" (click)="openEdit(c)">Edit</button>
@@ -85,10 +109,19 @@ export class CategoriesPage {
   readonly editingId = signal<string | null>(null);
 
   name = '';
+  parentId = '';
   editName = '';
+  editParentId = '';
+
+  readonly parentOptions = computed(() => parentCategoryOptions(this.categories()));
+  readonly editParentOptions = computed(() => parentCategoryOptions(this.categories(), this.editingId()));
 
   constructor() {
     this.refresh();
+  }
+
+  displayName(category: Category) {
+    return categoryLabel(this.categories(), category);
   }
 
   private refresh() {
@@ -105,9 +138,10 @@ export class CategoriesPage {
     this.isBusy.set(true);
     this.error.set(null);
     this.success.set(null);
-    this.api.createCategory({ name }).subscribe({
+    this.api.createCategory({ name, parentId: this.parentId || null }).subscribe({
       next: () => {
         this.name = '';
+        this.parentId = '';
         this.success.set('Category added.');
         this.refresh();
       },
@@ -119,6 +153,7 @@ export class CategoriesPage {
   openEdit(category: Category) {
     this.editingId.set(category.id);
     this.editName = category.name;
+    this.editParentId = category.parentId ?? '';
     this.error.set(null);
     this.success.set(null);
   }
@@ -126,6 +161,7 @@ export class CategoriesPage {
   cancelEdit() {
     this.editingId.set(null);
     this.editName = '';
+    this.editParentId = '';
   }
 
   saveEdit() {
@@ -137,7 +173,7 @@ export class CategoriesPage {
     this.error.set(null);
     this.success.set(null);
 
-    this.api.updateCategory(id, { name }).subscribe({
+    this.api.updateCategory(id, { name, parentId: this.editParentId || null }).subscribe({
       next: () => {
         this.cancelEdit();
         this.success.set('Category updated.');
@@ -149,7 +185,7 @@ export class CategoriesPage {
   }
 
   remove(category: Category) {
-    if (!confirm(`Delete category "${category.name}"?`)) return;
+    if (!confirm(`Delete category "${this.displayName(category)}"?`)) return;
 
     this.isBusy.set(true);
     this.error.set(null);

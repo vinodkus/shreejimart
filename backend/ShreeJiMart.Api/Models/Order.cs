@@ -3,6 +3,8 @@ namespace ShreeJiMart.Api.Models;
 public sealed class Order
 {
     public Guid Id { get; set; }
+    public Guid? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
     public string? CustomerName { get; set; }
     public string Phone { get; set; } = "";
     public string DeliveryAddress { get; set; } = "";

@@ -1,3 +1,6 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ShreeJiMart.Api.Data;
@@ -98,6 +101,11 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
         if (total <= 0)
             return BadRequest("Order total must be greater than zero.");
 
+        Customer? linkedCustomer = null;
+        var customerId = GetCustomerIdFromUser();
+        if (customerId is not null)
+            linkedCustomer = await db.Customers.FirstOrDefaultAsync(x => x.Id == customerId, ct);
+
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         foreach (var (productId, qtyNeeded) in qtyByProduct)
@@ -106,7 +114,8 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
         var order = new Order
         {
             Id = Guid.NewGuid(),
-            CustomerName = validation.CustomerName,
+            CustomerId = linkedCustomer?.Id,
+            CustomerName = validation.CustomerName ?? linkedCustomer?.DisplayName,
             Phone = validation.Phone!,
             DeliveryAddress = validation.DeliveryAddress!,
             PaymentMethod = "COD",
@@ -115,6 +124,14 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
             CreatedAt = DateTime.UtcNow,
             Lines = lines,
         };
+
+        if (linkedCustomer is not null)
+        {
+            linkedCustomer.Phone = validation.Phone!;
+            linkedCustomer.DefaultAddress = validation.DeliveryAddress!;
+            if (!string.IsNullOrWhiteSpace(validation.CustomerName))
+                linkedCustomer.DisplayName = validation.CustomerName;
+        }
 
         foreach (var line in lines)
             line.OrderId = order.Id;
@@ -132,6 +149,23 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
         var orders = await db.Orders
             .AsNoTracking()
             .Include(x => x.Lines)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(ct);
+
+        return Ok(orders.Select(ToDto).ToList());
+    }
+
+    [Authorize(Roles = "Customer")]
+    [HttpGet("mine")]
+    public async Task<ActionResult<List<OrderDto>>> GetMine(CancellationToken ct)
+    {
+        var customerId = GetCustomerIdFromUser();
+        if (customerId is null) return Unauthorized();
+
+        var orders = await db.Orders
+            .AsNoTracking()
+            .Include(x => x.Lines)
+            .Where(x => x.CustomerId == customerId)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(ct);
 
@@ -231,6 +265,17 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
             return ("Customer name max length is 120.", null, null, null);
 
         return (null, name, phone, address);
+    }
+
+    private Guid? GetCustomerIdFromUser()
+    {
+        if (User.Identity?.IsAuthenticated != true || !User.IsInRole("Customer"))
+            return null;
+
+        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        return Guid.TryParse(sub, out var customerId) ? customerId : null;
     }
 
     private static string? NormalizePhone(string? phone)

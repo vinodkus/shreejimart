@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiClient, Category, Product, ProductPayload } from '../api/api-client';
 import { CategorySearchSelectComponent } from '../components/category-search-select';
 import { resolveImageUrl } from '../utils/image-url';
+import { categoryNameById } from '../utils/category-utils';
 
 interface BulkProductRow {
   name: string;
@@ -384,7 +385,7 @@ export class ProductsPage {
   }
 
   categoryName(categoryId: string) {
-    return this.categories().find((c) => c.id === categoryId)?.name ?? '—';
+    return categoryNameById(this.categories(), categoryId, '—');
   }
 
   openCreate() {

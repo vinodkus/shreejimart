@@ -1,6 +1,10 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using ShreeJiMart.Api.Data;
+using ShreeJiMart.Api.Services;
 
 LoadDotEnv(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
@@ -24,6 +28,32 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(GetPostgresConnectionString(builder.Configuration)));
 
+builder.Services.AddScoped<CustomerJwtService>();
+builder.Services.AddScoped<GoogleAuthService>();
+
+var jwtSecret = builder.Configuration["CUSTOMER_JWT_SECRET"]
+    ?? builder.Configuration["JWT_SECRET"]
+    ?? "shreejimart-dev-customer-jwt-secret-change-me";
+var jwtIssuer = builder.Configuration["CUSTOMER_JWT_ISSUER"] ?? "ShreeJiMart";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = "ShreeJiMartCustomers",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 var uploadDir = Path.Combine(builder.Environment.WebRootPath, "uploads", "products");
 Directory.CreateDirectory(uploadDir);
 
@@ -45,6 +75,8 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseCors("Frontend");
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/", () => Results.Ok(new
 {

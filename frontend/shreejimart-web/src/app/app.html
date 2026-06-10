@@ -17,6 +17,17 @@
           <span class="store-location__value">Home · Indore</span>
         </div>
         <div class="store-header__actions">
+          @if (customerAuth.isLoggedIn()) {
+            <div class="store-user">
+              <span class="store-user__label">
+                {{ customerAuth.isGoogleUser() ? '👤' : '👋' }}
+                {{ customerAuth.displayLabel() }}
+              </span>
+              <button type="button" class="store-user__logout" (click)="customerAuth.logout()">Logout</button>
+            </div>
+          } @else {
+            <a routerLink="/login" class="store-login-link">Login</a>
+          }
           <a routerLink="/cart" class="store-cart-link">
             <span class="store-cart-link__icon" aria-hidden="true">🛒</span>
             <span class="store-cart-link__label">Cart</span>
