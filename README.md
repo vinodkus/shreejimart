@@ -50,6 +50,40 @@ npm start
 
 Open `http://localhost:4200`.
 
+## New developer setup (after git clone)
+
+The `.env` file is **not in git** (secrets). Each person who clones the repo must create it locally.
+
+1. Copy `.env.example` → `backend/ShreeJiMart.Api/.env`
+2. Fill in at minimum:
+   ```
+   DATABASE_URL=postgresql://...
+   GOOGLE_CLIENT_ID=1022772013529-p2l022f13bstndgvtla2a29msm4ssevm.apps.googleusercontent.com
+   CUSTOMER_JWT_SECRET=any-long-random-string
+   CORS_ORIGINS=http://localhost:4200
+   ```
+3. `GOOGLE_CLIENT_ID` must **exactly match** `googleClientId` in `frontend/shreejimart-web/src/environments/environment.ts`
+4. Run SQL migrations in Neon (see Database section above), including `add-customers-auth.sql`
+5. Restart the API after editing `.env` (`dotnet run` in `backend/ShreeJiMart.Api`)
+6. In Google Cloud Console, **Authorized JavaScript origins** must include `http://localhost:4200`
+
+**Guest login** works without Google — use **Continue as Guest** if `.env` is not ready yet.
+
+### Google login still failing?
+
+1. `.env` must be at **`backend/ShreeJiMart.Api/.env`** (not repo root, not `.env.txt`)
+2. Run API from project folder:
+   ```powershell
+   cd backend\ShreeJiMart.Api
+   dotnet run
+   ```
+3. Open diagnostic URL in browser:
+   `http://localhost:5080/api/customer-auth/setup-status`
+   - `googleClientIdConfigured` must be **true**
+   - `envFileLoaded` must be **true**
+4. `GOOGLE_CLIENT_ID` in `.env` must **exactly match** `googleClientId` in `environment.ts` (no extra spaces)
+5. Restart API after any `.env` change (stop terminal, run `dotnet run` again)
+
 ## Customer login (Google + Guest)
 
 1. Customer opens **Login** in the shop header (`/login`).

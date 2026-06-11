@@ -6,9 +6,11 @@ using Npgsql;
 using ShreeJiMart.Api.Data;
 using ShreeJiMart.Api.Services;
 
-LoadDotEnv(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
-
+var dotEnvVars = LoadDotEnvFiles();
 var builder = WebApplication.CreateBuilder(args);
+
+if (dotEnvVars.Count > 0)
+    builder.Configuration.AddInMemoryCollection(dotEnvVars);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -103,10 +105,46 @@ static string[] GetCorsOrigins(IConfiguration config)
     return ["http://localhost:4200", "https://test.sanatini.com"];
 }
 
-static void LoadDotEnv(string path)
+static Dictionary<string, string?> LoadDotEnvFiles()
 {
-    if (!File.Exists(path)) return;
+    var loaded = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+    foreach (var path in GetDotEnvCandidatePaths())
+    {
+        if (!File.Exists(path)) continue;
 
+        foreach (var (key, value) in ParseDotEnvFile(path))
+        {
+            loaded[key] = value;
+            if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(key)))
+                Environment.SetEnvironmentVariable(key, value);
+        }
+
+        Environment.SetEnvironmentVariable("SHREEJIMART_ENV_FILE", Path.GetFullPath(path));
+        break;
+    }
+
+    return loaded;
+}
+
+static IEnumerable<string> GetDotEnvCandidatePaths()
+{
+    var cwd = Directory.GetCurrentDirectory();
+    var baseDir = AppContext.BaseDirectory;
+
+    string[] candidates =
+    [
+        Path.Combine(cwd, ".env"),
+        Path.Combine(cwd, "backend", "ShreeJiMart.Api", ".env"),
+        Path.Combine(baseDir, ".env"),
+        Path.Combine(baseDir, "..", "..", "..", ".env"),
+        Path.Combine(baseDir, "..", "..", "..", "..", ".env"),
+    ];
+
+    return candidates.Select(Path.GetFullPath).Distinct();
+}
+
+static IEnumerable<(string Key, string Value)> ParseDotEnvFile(string path)
+{
     foreach (var rawLine in File.ReadAllLines(path))
     {
         var line = rawLine.Trim();
@@ -115,10 +153,10 @@ static void LoadDotEnv(string path)
         var idx = line.IndexOf('=');
         if (idx <= 0) continue;
 
-        var key = line[..idx].Trim();
+        var key = line[..idx].Trim().TrimStart('\uFEFF');
         var value = line[(idx + 1)..].Trim().Trim('"');
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
-            Environment.SetEnvironmentVariable(key, value);
+        if (key.Length > 0)
+            yield return (key, value);
     }
 }
 

@@ -6,7 +6,7 @@ public sealed class GoogleAuthService(IConfiguration config)
 {
     public async Task<GoogleJsonWebSignature.Payload?> ValidateIdTokenAsync(string idToken, CancellationToken ct)
     {
-        var clientId = config["GOOGLE_CLIENT_ID"];
+        var clientId = (config["GOOGLE_CLIENT_ID"] ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") ?? "").Trim();
         if (string.IsNullOrWhiteSpace(clientId))
             return null;
 
@@ -20,6 +20,10 @@ public sealed class GoogleAuthService(IConfiguration config)
                 });
         }
         catch (InvalidJwtException)
+        {
+            return null;
+        }
+        catch (Exception)
         {
             return null;
         }

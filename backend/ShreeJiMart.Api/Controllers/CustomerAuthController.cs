@@ -14,7 +14,8 @@ namespace ShreeJiMart.Api.Controllers;
 public sealed class CustomerAuthController(
     AppDbContext db,
     CustomerJwtService jwtService,
-    GoogleAuthService googleAuth) : ControllerBase
+    GoogleAuthService googleAuth,
+    IConfiguration config) : ControllerBase
 {
     public sealed record CustomerDto(
         Guid Id,
@@ -37,15 +38,40 @@ public sealed class CustomerAuthController(
         string? DefaultAddress
     );
 
+    [HttpGet("setup-status")]
+    public ActionResult<object> SetupStatus()
+    {
+        var clientId = (config["GOOGLE_CLIENT_ID"] ?? "").Trim();
+        var envFile = Environment.GetEnvironmentVariable("SHREEJIMART_ENV_FILE");
+        var databaseConfigured = !string.IsNullOrWhiteSpace(config["DATABASE_URL"]);
+
+        return Ok(new
+        {
+            envFileLoaded = !string.IsNullOrWhiteSpace(envFile),
+            envFile,
+            googleClientIdConfigured = clientId.Length > 0,
+            googleClientIdSuffix = clientId.Length > 8 ? clientId[^12..] : null,
+            databaseConfigured,
+            hint = clientId.Length == 0
+                ? "Create backend/ShreeJiMart.Api/.env with GOOGLE_CLIENT_ID, then restart API from that folder."
+                : "If Google login still fails, ensure googleClientId in Angular environment.ts matches GOOGLE_CLIENT_ID exactly.",
+        });
+    }
+
     [HttpPost("google")]
     public async Task<ActionResult<AuthResponse>> GoogleLogin([FromBody] GoogleLoginRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.IdToken))
             return BadRequest("Google ID token is required.");
 
+        var clientId = config["GOOGLE_CLIENT_ID"];
+        if (string.IsNullOrWhiteSpace(clientId))
+            return StatusCode(503, "API is missing GOOGLE_CLIENT_ID. Copy .env.example to backend/ShreeJiMart.Api/.env and restart the API.");
+
         var payload = await googleAuth.ValidateIdTokenAsync(request.IdToken, ct);
         if (payload is null || string.IsNullOrWhiteSpace(payload.Subject))
-            return Unauthorized("Invalid Google sign-in. Check GOOGLE_CLIENT_ID on the API.");
+            return Unauthorized(
+                "Google sign-in failed. Set the same Client ID in API .env (GOOGLE_CLIENT_ID) and Angular environment.ts (googleClientId), then restart the API.");
 
         var customer = await db.Customers.FirstOrDefaultAsync(x => x.GoogleSub == payload.Subject, ct);
 
