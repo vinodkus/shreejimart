@@ -20,6 +20,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Id).HasColumnName("id");
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
             entity.Property(x => x.ParentId).HasColumnName("parent_id");
+            entity.Property(x => x.ImageUrl).HasColumnName("image_url").HasMaxLength(500);
 
             entity.HasOne(x => x.Parent)
                 .WithMany(x => x.Children)
@@ -34,7 +35,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Id).HasColumnName("id");
             entity.Property(x => x.CategoryId).HasColumnName("category_id");
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Description).HasColumnName("description").HasMaxLength(2000);
             entity.Property(x => x.Price).HasColumnName("price").HasPrecision(12, 2);
+            entity.Property(x => x.DiscountType).HasColumnName("discount_type").HasMaxLength(16);
+            entity.Property(x => x.DiscountValue).HasColumnName("discount_value").HasPrecision(12, 2);
             entity.Property(x => x.Unit).HasColumnName("unit").HasMaxLength(32).IsRequired();
             entity.Property(x => x.ImageUrl).HasColumnName("image_url").HasMaxLength(500);
             entity.Property(x => x.IsActive).HasColumnName("is_active");

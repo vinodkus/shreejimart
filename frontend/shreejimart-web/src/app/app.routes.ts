@@ -8,9 +8,12 @@ import { OrderPlacedPage } from './pages/order-placed.page';
 import { AdminLoginPage } from './pages/admin-login.page';
 import { CustomerLoginPage } from './pages/customer-login.page';
 
+import { ProductDetailPage } from './pages/product-detail.page';
+
 export const routes: Routes = [
   { path: '', component: CustomerHomePage },
   { path: 'category/:id', component: CategoryProductsPage },
+  { path: 'product/:id', component: ProductDetailPage },
   { path: 'login', component: CustomerLoginPage },
   { path: 'cart', component: CartPage },
   { path: 'checkout', component: CheckoutPage },

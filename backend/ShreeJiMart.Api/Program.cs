@@ -56,10 +56,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-var uploadDir = Path.Combine(builder.Environment.WebRootPath, "uploads", "products");
-Directory.CreateDirectory(uploadDir);
+var productUploadDir = Path.Combine(builder.Environment.WebRootPath, "uploads", "products");
+Directory.CreateDirectory(productUploadDir);
+var categoryUploadDir = Path.Combine(builder.Environment.WebRootPath, "uploads", "categories");
+Directory.CreateDirectory(categoryUploadDir);
 
 var app = builder.Build();
+
+ApplySchemaPatches(app);
 
 var swaggerEnabled = app.Environment.IsDevelopment() ||
     string.Equals(Environment.GetEnvironmentVariable("SWAGGER_ENABLED"), "true", StringComparison.OrdinalIgnoreCase);
@@ -90,6 +94,47 @@ app.MapGet("/", () => Results.Ok(new
 app.MapControllers();
 
 app.Run();
+
+static void ApplySchemaPatches(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    db.Database.ExecuteSqlRaw("""
+        ALTER TABLE products
+        ADD COLUMN IF NOT EXISTS discount_type VARCHAR(16) NULL;
+        """);
+
+    db.Database.ExecuteSqlRaw("""
+        ALTER TABLE products
+        ADD COLUMN IF NOT EXISTS discount_value NUMERIC(12, 2) NULL;
+        """);
+
+    db.Database.ExecuteSqlRaw("""
+        ALTER TABLE products
+        ADD COLUMN IF NOT EXISTS discount_price NUMERIC(12, 2) NULL;
+        """);
+
+    db.Database.ExecuteSqlRaw("""
+        UPDATE products
+        SET discount_type = 'rupees',
+            discount_value = discount_price
+        WHERE discount_price IS NOT NULL
+          AND discount_price > 0
+          AND discount_price < price
+          AND (discount_type IS NULL OR discount_value IS NULL);
+        """);
+
+    db.Database.ExecuteSqlRaw("""
+        ALTER TABLE categories
+        ADD COLUMN IF NOT EXISTS image_url VARCHAR(500) NULL;
+        """);
+
+    db.Database.ExecuteSqlRaw("""
+        ALTER TABLE products
+        ADD COLUMN IF NOT EXISTS description VARCHAR(2000) NULL;
+        """);
+}
 
 static string[] GetCorsOrigins(IConfiguration config)
 {

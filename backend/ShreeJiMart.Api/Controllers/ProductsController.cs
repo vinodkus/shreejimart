@@ -46,7 +46,10 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
     public sealed record CreateProductRequest(
         Guid CategoryId,
         string Name,
+        string? Description,
         decimal Price,
+        string? DiscountType,
+        decimal? DiscountValue,
         string Unit,
         string? ImageUrl,
         bool IsActive,
@@ -56,7 +59,10 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
     public sealed record UpdateProductRequest(
         Guid CategoryId,
         string Name,
+        string? Description,
         decimal Price,
+        string? DiscountType,
+        decimal? DiscountValue,
         string Unit,
         string? ImageUrl,
         bool IsActive,
@@ -65,7 +71,10 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
 
     public sealed record BulkProductItemRequest(
         string Name,
+        string? Description,
         decimal Price,
+        string? DiscountType,
+        decimal? DiscountValue,
         string Unit,
         string? ImageUrl,
         bool IsActive,
@@ -112,12 +121,26 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
             if (validation.Error is not null)
                 return BadRequest($"Row {i + 1}: check name, unit, price, and stock.");
 
+            var descriptionValidation = ValidateDescription(item.Description);
+            if (descriptionValidation.Error is not null)
+                return BadRequest($"Row {i + 1}: {descriptionValidation.Error}");
+
+            var discountValidation = ProductPricing.NormalizeDiscount(
+                item.Price,
+                item.DiscountType,
+                item.DiscountValue);
+            if (discountValidation.ErrorMessage is not null)
+                return BadRequest($"Row {i + 1}: {discountValidation.ErrorMessage}");
+
             entities.Add(new Product
             {
                 Id = Guid.NewGuid(),
                 CategoryId = request.CategoryId,
                 Name = validation.Name!,
+                Description = descriptionValidation.Description,
                 Price = item.Price,
+                DiscountType = discountValidation.DiscountType,
+                DiscountValue = discountValidation.DiscountValue,
                 Unit = validation.Unit!,
                 ImageUrl = validation.ImageUrl,
                 IsActive = item.IsActive,
@@ -144,12 +167,24 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
             ct);
         if (validation.Error is not null) return validation.Error;
 
+        var descriptionValidation = ValidateDescription(request.Description);
+        if (descriptionValidation.Error is not null) return BadRequest(descriptionValidation.Error);
+
+        var discountValidation = ProductPricing.NormalizeDiscount(
+            request.Price,
+            request.DiscountType,
+            request.DiscountValue);
+        if (discountValidation.ErrorMessage is not null) return BadRequest(discountValidation.ErrorMessage);
+
         var entity = new Product
         {
             Id = Guid.NewGuid(),
             CategoryId = request.CategoryId,
             Name = validation.Name!,
+            Description = descriptionValidation.Description,
             Price = request.Price,
+            DiscountType = discountValidation.DiscountType,
+            DiscountValue = discountValidation.DiscountValue,
             Unit = validation.Unit!,
             ImageUrl = validation.ImageUrl,
             IsActive = request.IsActive,
@@ -178,9 +213,21 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
             ct);
         if (validation.Error is not null) return validation.Error;
 
+        var descriptionValidation = ValidateDescription(request.Description);
+        if (descriptionValidation.Error is not null) return BadRequest(descriptionValidation.Error);
+
+        var discountValidation = ProductPricing.NormalizeDiscount(
+            request.Price,
+            request.DiscountType,
+            request.DiscountValue);
+        if (discountValidation.ErrorMessage is not null) return BadRequest(discountValidation.ErrorMessage);
+
         entity.CategoryId = request.CategoryId;
         entity.Name = validation.Name!;
+        entity.Description = descriptionValidation.Description;
         entity.Price = request.Price;
+        entity.DiscountType = discountValidation.DiscountType;
+        entity.DiscountValue = discountValidation.DiscountValue;
         entity.Unit = validation.Unit!;
         entity.ImageUrl = validation.ImageUrl;
         entity.IsActive = request.IsActive;
@@ -236,5 +283,17 @@ public sealed class ProductsController(AppDbContext db) : ControllerBase
             return (BadRequest("Image URL max length is 500."), null, null, null, 0);
 
         return (null, trimmedName, trimmedUnit, trimmedImageUrl, stockQuantity);
+    }
+
+    private static (string? Error, string? Description) ValidateDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+            return (null, null);
+
+        var trimmed = description.Trim();
+        if (trimmed.Length > 2000)
+            return ("Description max length is 2000 characters.", null);
+
+        return (null, trimmed);
     }
 }

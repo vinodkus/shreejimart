@@ -1,12 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ApiClient, Category, Product } from '../api/api-client';
 import { CartService } from '../cart/cart.service';
 import { resolveImageUrl } from '../utils/image-url';
 import { categoryLabel, categoryNameById, topLevelCategories } from '../utils/category-utils';
 import { shopCategoryIcon, shopProductEmoji, shopTileColor } from '../utils/product-display.utils';
+import { discountBadge, effectivePrice, hasDiscount, productPriceLabel } from '../utils/product-price.utils';
 
 type SearchSuggestion =
   | { kind: 'product'; product: Product }
@@ -14,7 +15,7 @@ type SearchSuggestion =
 
 @Component({
   standalone: true,
-  imports: [NgForOf, NgIf, FormsModule],
+  imports: [NgForOf, NgIf, FormsModule, RouterLink],
   template: `
     <div class="shop">
       <section class="hero-banner">
@@ -59,8 +60,11 @@ type SearchSuggestion =
               class="search-suggestion"
               (mousedown)="pickSuggestion(item)"
             >
-              <span class="search-suggestion__icon" *ngIf="item.kind === 'category'">
+              <span class="search-suggestion__icon" *ngIf="item.kind === 'category' && !categoryImage(item.category)">
                 {{ categoryIcon(item.category.name) }}
+              </span>
+              <span class="search-suggestion__thumb" *ngIf="item.kind === 'category' && categoryImage(item.category)">
+                <img [src]="categoryImage(item.category)!" [alt]="" />
               </span>
               <span class="search-suggestion__thumb" *ngIf="item.kind === 'product'">
                 <img *ngIf="productImage(item.product)" [src]="productImage(item.product)!" [alt]="" />
@@ -68,10 +72,19 @@ type SearchSuggestion =
               </span>
               <span class="search-suggestion__body">
                 <strong>{{ item.kind === 'category' ? suggestionCategoryLabel(item.category) : item.product.name }}</strong>
+                <small
+                  class="search-suggestion__desc"
+                  *ngIf="item.kind === 'product' && item.product.description"
+                >
+                  {{ item.product.description }}
+                </small>
                 <small>
                   {{
                     item.kind === 'product'
-                      ? categoryName(item.product.categoryId) + ' · ₹' + item.product.price
+                      ? categoryName(item.product.categoryId) +
+                        ' · ' +
+                        productPriceLabel(item.product) +
+                        (discountBadge(item.product) ? ' · ' + discountBadge(item.product) : '')
                       : 'Category'
                   }}
                 </small>
@@ -100,7 +113,8 @@ type SearchSuggestion =
             *ngFor="let c of topLevel()"
             (click)="openCategory(c.id)"
           >
-            <span class="category-chip__icon">{{ categoryIcon(c.name) }}</span>
+            <span class="category-chip__icon" *ngIf="!categoryImage(c)">{{ categoryIcon(c.name) }}</span>
+            <img *ngIf="categoryImage(c)" class="category-chip__img" [src]="categoryImage(c)!" [alt]="" />
             <span class="category-chip__text">{{ c.name }}</span>
           </button>
         </div>
@@ -127,38 +141,49 @@ type SearchSuggestion =
 
         <div class="product-grid">
           <article class="product-tile" *ngFor="let p of filteredProducts()">
-            <div
-              class="product-tile__media"
-              [class.product-tile__media--photo]="!!productImage(p)"
-              [style.background]="productImage(p) ? null : tileColor(p.categoryId)"
-            >
-              <img *ngIf="productImage(p)" class="product-tile__img" [src]="productImage(p)!" [alt]="p.name" />
-              <span *ngIf="!productImage(p)" class="product-tile__emoji">{{ productEmoji(p.name) }}</span>
-              <span
-                class="product-tile__tag"
-                [class.product-tile__tag--out]="stockOf(p) <= 0"
-                *ngIf="p.isActive"
+            <a [routerLink]="['/product', p.id]" class="product-tile__link">
+              <div
+                class="product-tile__media"
+                [class.product-tile__media--photo]="!!productImage(p)"
+                [style.background]="productImage(p) ? null : tileColor(p.categoryId)"
               >
-                {{ stockOf(p) > 0 ? stockOf(p) + ' left' : 'Out of stock' }}
-              </span>
-            </div>
-            <div class="product-tile__body">
-              <h3 class="product-tile__name">{{ p.name }}</h3>
-              <p class="product-tile__meta">{{ categoryName(p.categoryId) }} · {{ p.unit }}</p>
-              <div class="product-tile__footer">
-                <div class="product-tile__price">
-                  <span class="price-now">₹{{ p.price }}</span>
-                </div>
-                <button
-                  type="button"
-                  class="btn-add"
-                  [class.btn-add--added]="addedId() === p.id"
-                  [disabled]="stockOf(p) < 1"
-                  (click)="addToCart(p)"
+                <img *ngIf="productImage(p)" class="product-tile__img" [src]="productImage(p)!" [alt]="p.name" />
+                <span *ngIf="!productImage(p)" class="product-tile__emoji">{{ productEmoji(p.name) }}</span>
+                <span
+                  class="product-tile__discount"
+                  *ngIf="discountBadge(p)"
                 >
-                  {{ stockOf(p) < 1 ? 'OUT' : addedId() === p.id ? 'Added' : 'ADD' }}
-                </button>
+                  {{ discountBadge(p) }}
+                </span>
+                <span
+                  class="product-tile__tag"
+                  [class.product-tile__tag--out]="stockOf(p) <= 0"
+                  *ngIf="p.isActive"
+                >
+                  {{ stockOf(p) > 0 ? stockOf(p) + ' left' : 'Out of stock' }}
+                </span>
               </div>
+              <div class="product-tile__body">
+                <h3 class="product-tile__name">{{ p.name }}</h3>
+                <p class="product-tile__meta">{{ categoryName(p.categoryId) }} · {{ p.unit }}</p>
+                <p class="product-tile__desc" *ngIf="p.description">{{ p.description }}</p>
+              </div>
+            </a>
+            <div class="product-tile__footer">
+              <div class="product-tile__price">
+                <span class="price-off-chip" *ngIf="discountBadge(p)">{{ discountBadge(p) }}</span>
+                <span class="price-was" *ngIf="hasDiscount(p)">₹{{ p.price }}</span>
+                <span class="price-now" [class.price-now--sale]="hasDiscount(p)">₹{{ effectivePrice(p) }}</span>
+              </div>
+              <button
+                type="button"
+                class="btn-add"
+                [class.btn-add--added]="addedId() === p.id"
+                [disabled]="stockOf(p) < 1"
+                (click)="addToCart(p, $event)"
+              >
+                {{ stockOf(p) < 1 ? 'OUT' : addedId() === p.id ? 'Added' : 'ADD' }}
+              </button>
             </div>
           </article>
         </div>
@@ -221,7 +246,8 @@ export class CustomerHomePage {
     const name = p.name.toLowerCase();
     const unit = p.unit.toLowerCase();
     const category = this.categoryName(p.categoryId).toLowerCase();
-    return name.includes(q) || unit.includes(q) || category.includes(q);
+    const description = (p.description ?? '').toLowerCase();
+    return name.includes(q) || unit.includes(q) || category.includes(q) || description.includes(q);
   }
 
   onSearchInput(value: string) {
@@ -251,8 +277,9 @@ export class CustomerHomePage {
       return;
     }
 
-    this.searchText.set(item.product.name);
+    this.searchText.set('');
     this.showSuggestions.set(false);
+    this.router.navigate(['/product', item.product.id]);
   }
 
   sectionTitle() {
@@ -284,6 +311,10 @@ export class CustomerHomePage {
     return shopCategoryIcon(name);
   }
 
+  categoryImage(category: Category) {
+    return resolveImageUrl(category.imageUrl);
+  }
+
   productImage(p: Product) {
     return resolveImageUrl(p.imageUrl);
   }
@@ -300,7 +331,9 @@ export class CustomerHomePage {
     return product.stockQuantity ?? 0;
   }
 
-  addToCart(product: Product) {
+  addToCart(product: Product, event?: Event) {
+    event?.preventDefault();
+    event?.stopPropagation();
     if (this.stockOf(product) < 1) return;
     this.cart.addProduct(product);
     this.addedId.set(product.id);
@@ -308,4 +341,9 @@ export class CustomerHomePage {
       if (this.addedId() === product.id) this.addedId.set(null);
     }, 1200);
   }
+
+  hasDiscount = hasDiscount;
+  effectivePrice = effectivePrice;
+  productPriceLabel = productPriceLabel;
+  discountBadge = discountBadge;
 }

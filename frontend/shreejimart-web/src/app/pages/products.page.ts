@@ -1,14 +1,18 @@
 import { Component, inject, signal } from '@angular/core';
 import { NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiClient, Category, Product, ProductPayload } from '../api/api-client';
+import { ApiClient, Category, DiscountType, Product, ProductPayload } from '../api/api-client';
 import { CategorySearchSelectComponent } from '../components/category-search-select';
 import { resolveImageUrl } from '../utils/image-url';
 import { categoryNameById } from '../utils/category-utils';
+import { discountSummary, effectivePrice, hasDiscount, isDiscountValid } from '../utils/product-price.utils';
 
 interface BulkProductRow {
   name: string;
+  description: string;
   price: number;
+  discountType: DiscountType | '';
+  discountValue: number | null;
   unit: string;
   stockQuantity: number;
   isActive: boolean;
@@ -69,9 +73,50 @@ type FormMode = 'single' | 'bulk' | null;
               Product name *
               <input [(ngModel)]="form.name" name="name" required minlength="2" maxlength="160" />
             </label>
+            <label class="product-form__full">
+              Description
+              <textarea
+                [(ngModel)]="form.description"
+                name="description"
+                rows="3"
+                maxlength="2000"
+                placeholder="Optional product details for customers"
+              ></textarea>
+              <small class="hint">{{ (form.description || '').length }}/2000</small>
+            </label>
             <label>
-              Price (₹) *
+              Regular price (₹) *
               <input [(ngModel)]="form.price" name="price" type="number" min="0" step="0.01" required />
+            </label>
+            <label>
+              Discount type
+              <select [(ngModel)]="form.discountType" name="discountType" (ngModelChange)="onDiscountTypeChange()">
+                <option value="">No discount</option>
+                <option value="rupees">Rupees (sale price)</option>
+                <option value="percent">Percentage (%)</option>
+              </select>
+            </label>
+            <label *ngIf="form.discountType">
+              {{ form.discountType === 'percent' ? 'Discount (%)' : 'Sale price (₹)' }}
+              <input
+                [(ngModel)]="form.discountValue"
+                name="discountValue"
+                type="number"
+                min="0"
+                [max]="form.discountType === 'percent' ? 99.99 : form.price"
+                [step]="form.discountType === 'percent' ? 0.01 : 0.01"
+                [placeholder]="form.discountType === 'percent' ? 'e.g. 10 for 10% off' : 'Final price customer pays'"
+              />
+              <small class="hint" *ngIf="form.discountType && !isDiscountValid(form.price, form.discountType, form.discountValue)">
+                {{
+                  form.discountType === 'percent'
+                    ? 'Enter a percent between 0 and 100'
+                    : 'Sale price must be less than regular price'
+                }}
+              </small>
+              <small class="hint" *ngIf="form.discountType && isDiscountValid(form.price, form.discountType, form.discountValue)">
+                Customer pays ₹{{ previewPrice(form) }}
+              </small>
             </label>
             <label>
               Unit *
@@ -160,7 +205,10 @@ type FormMode = 'single' | 'bulk' | null;
                   <th>#</th>
                   <th>Image</th>
                   <th>Product name *</th>
-                  <th>Price (₹) *</th>
+                  <th>Description</th>
+                  <th>Regular (₹) *</th>
+                  <th>Discount</th>
+                  <th>Value</th>
                   <th>Unit *</th>
                   <th>Stock *</th>
                   <th>Active</th>
@@ -210,6 +258,16 @@ type FormMode = 'single' | 'bulk' | null;
                     />
                   </td>
                   <td>
+                    <textarea
+                      [(ngModel)]="row.description"
+                      [name]="'bulkDesc' + i"
+                      rows="2"
+                      maxlength="2000"
+                      placeholder="Optional"
+                      class="bulk-description"
+                    ></textarea>
+                  </td>
+                  <td>
                     <input
                       [(ngModel)]="row.price"
                       [name]="'bulkPrice' + i"
@@ -218,6 +276,26 @@ type FormMode = 'single' | 'bulk' | null;
                       step="0.01"
                       required
                     />
+                  </td>
+                  <td>
+                    <select [(ngModel)]="row.discountType" [name]="'bulkDiscountType' + i">
+                      <option value="">None</option>
+                      <option value="rupees">₹</option>
+                      <option value="percent">%</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      *ngIf="row.discountType"
+                      [(ngModel)]="row.discountValue"
+                      [name]="'bulkDiscountValue' + i"
+                      type="number"
+                      min="0"
+                      [max]="row.discountType === 'percent' ? 99.99 : row.price"
+                      step="0.01"
+                      [placeholder]="row.discountType === 'percent' ? '%' : 'Sale ₹'"
+                    />
+                    <span *ngIf="!row.discountType" class="hint">—</span>
                   </td>
                   <td>
                     <input
@@ -291,9 +369,17 @@ type FormMode = 'single' | 'bulk' | null;
                 <td>
                   <strong>{{ p.name }}</strong>
                   <small>{{ p.unit }}</small>
+                  <p class="product-desc-preview" *ngIf="p.description">{{ p.description }}</p>
                 </td>
                 <td>{{ categoryName(p.categoryId) }}</td>
-                <td>₹{{ p.price }}</td>
+                <td>
+                  <ng-container *ngIf="hasDiscount(p); else listRegularOnly">
+                    <span class="price-was">₹{{ p.price }}</span>
+                    <strong>₹{{ effectivePrice(p) }}</strong>
+                    <small *ngIf="discountSummary(p)">{{ discountSummary(p) }}</small>
+                  </ng-container>
+                  <ng-template #listRegularOnly>₹{{ p.price }}</ng-template>
+                </td>
                 <td>
                   <span
                     class="badge"
@@ -357,7 +443,10 @@ export class ProductsPage {
     return {
       categoryId: '',
       name: '',
+      description: null,
       price: 0,
+      discountType: null,
+      discountValue: null,
       unit: 'pcs',
       imageUrl: null,
       isActive: true,
@@ -366,7 +455,17 @@ export class ProductsPage {
   }
 
   private emptyBulkRow(): BulkProductRow {
-    return { name: '', price: 0, unit: 'pcs', stockQuantity: 10, isActive: true, imageUrl: null };
+    return {
+      name: '',
+      description: '',
+      price: 0,
+      discountType: '',
+      discountValue: null,
+      unit: 'pcs',
+      stockQuantity: 10,
+      isActive: true,
+      imageUrl: null,
+    };
   }
 
   private refreshCategories() {
@@ -410,7 +509,10 @@ export class ProductsPage {
     this.form = {
       categoryId: p.categoryId,
       name: p.name,
+      description: p.description ?? null,
       price: p.price,
+      discountType: p.discountType ?? null,
+      discountValue: p.discountValue ?? null,
       unit: p.unit,
       imageUrl: p.imageUrl ?? null,
       isActive: p.isActive,
@@ -443,9 +545,30 @@ export class ProductsPage {
     return this.bulkRows.filter((row) => {
       const name = row.name.trim();
       const unit = row.unit.trim();
-      return name.length >= 2 && unit.length >= 1 && row.price >= 0 && row.stockQuantity >= 0;
+      return (
+        name.length >= 2 &&
+        unit.length >= 1 &&
+        row.price >= 0 &&
+        row.stockQuantity >= 0 &&
+        isDiscountValid(row.price, row.discountType || null, row.discountValue)
+      );
     });
   }
+
+  onDiscountTypeChange() {
+    if (!this.form.discountType) {
+      this.form.discountValue = null;
+    }
+  }
+
+  previewPrice(form: ProductPayload) {
+    return effectivePrice(form);
+  }
+
+  hasDiscount = hasDiscount;
+  effectivePrice = effectivePrice;
+  discountSummary = discountSummary;
+  isDiscountValid = isDiscountValid;
 
   onImageUrlChange() {
     if (!this.form.imageUrl?.trim()) this.form.imageUrl = null;
@@ -511,13 +634,24 @@ export class ProductsPage {
 
   save() {
     if (!this.form.categoryId) return;
+    if (!isDiscountValid(this.form.price, this.form.discountType, this.form.discountValue)) {
+      this.error.set(
+        this.form.discountType === 'percent'
+          ? 'Discount percent must be greater than 0 and less than 100.'
+          : 'Sale price must be less than regular price.',
+      );
+      return;
+    }
+
     this.isBusy.set(true);
     this.error.set(null);
     this.success.set(null);
 
     const payload: ProductPayload = {
       ...this.form,
+      description: this.form.description?.trim() || null,
       imageUrl: this.form.imageUrl?.trim() || null,
+      ...this.normalizeDiscountFields(this.form.price, this.form.discountType, this.form.discountValue),
     };
 
     const id = this.editingId();
@@ -547,7 +681,9 @@ export class ProductsPage {
         categoryId: this.bulkCategoryId,
         items: items.map((row) => ({
           name: row.name.trim(),
+          description: row.description.trim() || null,
           price: row.price,
+          ...this.normalizeDiscountFields(row.price, row.discountType || null, row.discountValue),
           unit: row.unit.trim(),
           imageUrl: row.imageUrl?.trim() || null,
           isActive: row.isActive,
@@ -576,5 +712,21 @@ export class ProductsPage {
       error: (e) => this.error.set(e?.error ?? 'Delete failed'),
       complete: () => this.isBusy.set(false),
     });
+  }
+
+  private normalizeDiscountFields(
+    price: number,
+    discountType: DiscountType | '' | null | undefined,
+    discountValue: number | null | undefined,
+  ): Pick<ProductPayload, 'discountType' | 'discountValue'> {
+    if (!discountType || discountValue == null || discountValue === 0) {
+      return { discountType: null, discountValue: null };
+    }
+
+    if (!isDiscountValid(price, discountType, discountValue)) {
+      return { discountType: null, discountValue: null };
+    }
+
+    return { discountType, discountValue };
   }
 }

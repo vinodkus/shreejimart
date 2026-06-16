@@ -15,7 +15,18 @@ public sealed class UploadController(IWebHostEnvironment env) : ControllerBase
 
     [HttpPost("product-image")]
     [RequestSizeLimit(MaxBytes)]
-    public async Task<ActionResult<UploadResponse>> UploadProductImage(IFormFile file, CancellationToken ct)
+    public Task<ActionResult<UploadResponse>> UploadProductImage(IFormFile file, CancellationToken ct) =>
+        SaveImageAsync(file, "products", ct);
+
+    [HttpPost("category-image")]
+    [RequestSizeLimit(MaxBytes)]
+    public Task<ActionResult<UploadResponse>> UploadCategoryImage(IFormFile file, CancellationToken ct) =>
+        SaveImageAsync(file, "categories", ct);
+
+    private async Task<ActionResult<UploadResponse>> SaveImageAsync(
+        IFormFile file,
+        string folder,
+        CancellationToken ct)
     {
         if (file.Length == 0) return BadRequest("File is empty.");
         if (file.Length > MaxBytes) return BadRequest("Max file size is 2 MB.");
@@ -24,7 +35,7 @@ public sealed class UploadController(IWebHostEnvironment env) : ControllerBase
         if (string.IsNullOrWhiteSpace(ext) || !AllowedExtensions.Contains(ext))
             return BadRequest("Allowed formats: JPG, PNG, WEBP, GIF.");
 
-        var uploadsDir = Path.Combine(env.WebRootPath, "uploads", "products");
+        var uploadsDir = Path.Combine(env.WebRootPath, "uploads", folder);
         Directory.CreateDirectory(uploadsDir);
 
         var fileName = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
@@ -35,7 +46,7 @@ public sealed class UploadController(IWebHostEnvironment env) : ControllerBase
             await file.CopyToAsync(stream, ct);
         }
 
-        var url = $"/uploads/products/{fileName}";
+        var url = $"/uploads/{folder}/{fileName}";
         return Ok(new UploadResponse(url));
     }
 

@@ -83,7 +83,8 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
         foreach (var item in request.Items)
         {
             var product = productMap[item.ProductId];
-            var lineTotal = product.Price * item.Quantity;
+            var unitPrice = ProductPricing.EffectivePrice(product);
+            var lineTotal = unitPrice * item.Quantity;
             total += lineTotal;
 
             lines.Add(new OrderLine
@@ -92,7 +93,7 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
                 ProductId = product.Id,
                 ProductName = product.Name,
                 Unit = product.Unit,
-                UnitPrice = product.Price,
+                UnitPrice = unitPrice,
                 Quantity = item.Quantity,
                 LineTotal = lineTotal,
             });

@@ -7,7 +7,11 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ADMIN_USERNAME": "admin",
-        "ADMIN_PASSWORD": "admin123"
+        "ADMIN_PASSWORD": "admin123",
+        "GOOGLE_CLIENT_ID": "1022772013529-p2l022f13bstndgvtla2a29msm4ssevm.apps.googleusercontent.com",
+        "CUSTOMER_JWT_SECRET": "shreejimart-dev-customer-jwt-local",
+        "CUSTOMER_JWT_ISSUER": "ShreeJiMart",
+        "CORS_ORIGINS": "http://localhost:4200"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "http://localhost:5080"
@@ -19,7 +23,11 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ADMIN_USERNAME": "admin",
-        "ADMIN_PASSWORD": "admin123"
+        "ADMIN_PASSWORD": "admin123",
+        "GOOGLE_CLIENT_ID": "1022772013529-p2l022f13bstndgvtla2a29msm4ssevm.apps.googleusercontent.com",
+        "CUSTOMER_JWT_SECRET": "shreejimart-dev-customer-jwt-local",
+        "CUSTOMER_JWT_ISSUER": "ShreeJiMart",
+        "CORS_ORIGINS": "http://localhost:4200"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "https://localhost:7080;http://localhost:5080"

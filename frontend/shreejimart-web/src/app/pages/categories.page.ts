@@ -3,6 +3,7 @@ import { NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiClient, Category } from '../api/api-client';
 import { categoryLabel, parentCategoryOptions } from '../utils/category-utils';
+import { resolveImageUrl } from '../utils/image-url';
 
 @Component({
   standalone: true,
@@ -30,6 +31,33 @@ import { categoryLabel, parentCategoryOptions } from '../utils/category-utils';
               <option *ngFor="let p of parentOptions()" [value]="p.id">{{ p.name }}</option>
             </select>
           </label>
+
+          <div class="image-section image-section--compact">
+            <h3>Category image</h3>
+            <div class="image-section__row">
+              <div class="image-preview image-preview--small">
+                <img *ngIf="createPreviewUrl()" [src]="createPreviewUrl()!" alt="Preview" />
+                <span *ngIf="!createPreviewUrl()" class="image-preview__empty">No image</span>
+              </div>
+              <div class="image-actions">
+                <label class="btn-upload">
+                  Upload image
+                  <input type="file" accept="image/*" (change)="onCreateFileSelected($event)" hidden />
+                </label>
+                <label>
+                  Or image URL
+                  <input
+                    [(ngModel)]="createImageUrl"
+                    name="createImageUrl"
+                    placeholder="/uploads/categories/... or https://..."
+                    (ngModelChange)="onCreateImageUrlChange()"
+                  />
+                </label>
+                <button type="button" class="btn-ghost" (click)="clearCreateImage()">Remove image</button>
+              </div>
+            </div>
+          </div>
+
           <button type="submit" class="btn-primary" [disabled]="isBusy() || !f.valid">Add category</button>
         </form>
         <p class="hint">Leave parent empty for a main category, or pick a parent to create a subcategory.</p>
@@ -55,6 +83,33 @@ import { categoryLabel, parentCategoryOptions } from '../utils/category-utils';
               <option *ngFor="let p of editParentOptions()" [value]="p.id">{{ p.name }}</option>
             </select>
           </label>
+
+          <div class="image-section image-section--compact">
+            <h3>Category image</h3>
+            <div class="image-section__row">
+              <div class="image-preview image-preview--small">
+                <img *ngIf="editPreviewUrl()" [src]="editPreviewUrl()!" alt="Preview" />
+                <span *ngIf="!editPreviewUrl()" class="image-preview__empty">No image</span>
+              </div>
+              <div class="image-actions">
+                <label class="btn-upload">
+                  Upload image
+                  <input type="file" accept="image/*" (change)="onEditFileSelected($event)" hidden />
+                </label>
+                <label>
+                  Or image URL
+                  <input
+                    [(ngModel)]="editImageUrl"
+                    name="editImageUrl"
+                    placeholder="/uploads/categories/... or https://..."
+                    (ngModelChange)="onEditImageUrlChange()"
+                  />
+                </label>
+                <button type="button" class="btn-ghost" (click)="clearEditImage()">Remove image</button>
+              </div>
+            </div>
+          </div>
+
           <button type="submit" class="btn-primary" [disabled]="isBusy() || !editForm.valid">Save</button>
           <button type="button" class="btn-secondary" (click)="cancelEdit()">Cancel</button>
         </form>
@@ -69,6 +124,7 @@ import { categoryLabel, parentCategoryOptions } from '../utils/category-utils';
             <thead>
               <tr>
                 <th>#</th>
+                <th>Image</th>
                 <th>Category</th>
                 <th>Type</th>
                 <th>ID</th>
@@ -78,6 +134,9 @@ import { categoryLabel, parentCategoryOptions } from '../utils/category-utils';
             <tbody>
               <tr *ngFor="let c of categories(); let i = index">
                 <td>{{ i + 1 }}</td>
+                <td>
+                  <img class="thumb" [src]="categoryImage(c) || placeholder" [alt]="c.name" />
+                </td>
                 <td>
                   <strong [class.category-name--sub]="c.parentId">{{ displayName(c) }}</strong>
                 </td>
@@ -110,8 +169,13 @@ export class CategoriesPage {
 
   name = '';
   parentId = '';
+  createImageUrl: string | null = null;
   editName = '';
   editParentId = '';
+  editImageUrl: string | null = null;
+
+  readonly placeholder =
+    'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect fill="#e2e8f0" width="80" height="80"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="10">No img</text></svg>');
 
   readonly parentOptions = computed(() => parentCategoryOptions(this.categories()));
   readonly editParentOptions = computed(() => parentCategoryOptions(this.categories(), this.editingId()));
@@ -122,6 +186,18 @@ export class CategoriesPage {
 
   displayName(category: Category) {
     return categoryLabel(this.categories(), category);
+  }
+
+  categoryImage(category: Category) {
+    return resolveImageUrl(category.imageUrl);
+  }
+
+  createPreviewUrl() {
+    return resolveImageUrl(this.createImageUrl);
+  }
+
+  editPreviewUrl() {
+    return resolveImageUrl(this.editImageUrl);
   }
 
   private refresh() {
@@ -138,22 +214,30 @@ export class CategoriesPage {
     this.isBusy.set(true);
     this.error.set(null);
     this.success.set(null);
-    this.api.createCategory({ name, parentId: this.parentId || null }).subscribe({
-      next: () => {
-        this.name = '';
-        this.parentId = '';
-        this.success.set('Category added.');
-        this.refresh();
-      },
-      error: (e) => this.error.set(e?.error ?? e?.message ?? 'Failed to create'),
-      complete: () => this.isBusy.set(false),
-    });
+    this.api
+      .createCategory({
+        name,
+        parentId: this.parentId || null,
+        imageUrl: this.createImageUrl?.trim() || null,
+      })
+      .subscribe({
+        next: () => {
+          this.name = '';
+          this.parentId = '';
+          this.createImageUrl = null;
+          this.success.set('Category added.');
+          this.refresh();
+        },
+        error: (e) => this.error.set(e?.error ?? e?.message ?? 'Failed to create'),
+        complete: () => this.isBusy.set(false),
+      });
   }
 
   openEdit(category: Category) {
     this.editingId.set(category.id);
     this.editName = category.name;
     this.editParentId = category.parentId ?? '';
+    this.editImageUrl = category.imageUrl ?? null;
     this.error.set(null);
     this.success.set(null);
   }
@@ -162,6 +246,7 @@ export class CategoriesPage {
     this.editingId.set(null);
     this.editName = '';
     this.editParentId = '';
+    this.editImageUrl = null;
   }
 
   saveEdit() {
@@ -173,15 +258,21 @@ export class CategoriesPage {
     this.error.set(null);
     this.success.set(null);
 
-    this.api.updateCategory(id, { name, parentId: this.editParentId || null }).subscribe({
-      next: () => {
-        this.cancelEdit();
-        this.success.set('Category updated.');
-        this.refresh();
-      },
-      error: (e) => this.error.set(e?.error ?? e?.message ?? 'Failed to update'),
-      complete: () => this.isBusy.set(false),
-    });
+    this.api
+      .updateCategory(id, {
+        name,
+        parentId: this.editParentId || null,
+        imageUrl: this.editImageUrl?.trim() || null,
+      })
+      .subscribe({
+        next: () => {
+          this.cancelEdit();
+          this.success.set('Category updated.');
+          this.refresh();
+        },
+        error: (e) => this.error.set(e?.error ?? e?.message ?? 'Failed to update'),
+        complete: () => this.isBusy.set(false),
+      });
   }
 
   remove(category: Category) {
@@ -199,6 +290,57 @@ export class CategoriesPage {
       },
       error: (e) => this.error.set(e?.error ?? e?.message ?? 'Failed to delete'),
       complete: () => this.isBusy.set(false),
+    });
+  }
+
+  onCreateImageUrlChange() {
+    if (!this.createImageUrl?.trim()) this.createImageUrl = null;
+  }
+
+  onEditImageUrlChange() {
+    if (!this.editImageUrl?.trim()) this.editImageUrl = null;
+  }
+
+  clearCreateImage() {
+    this.createImageUrl = null;
+  }
+
+  clearEditImage() {
+    this.editImageUrl = null;
+  }
+
+  onCreateFileSelected(event: Event) {
+    this.uploadImage(event, (url) => {
+      this.createImageUrl = url;
+      this.success.set('Image uploaded.');
+    });
+  }
+
+  onEditFileSelected(event: Event) {
+    this.uploadImage(event, (url) => {
+      this.editImageUrl = url;
+      this.success.set('Image uploaded.');
+    });
+  }
+
+  private uploadImage(event: Event, onSuccess: (url: string) => void) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    this.isBusy.set(true);
+    this.error.set(null);
+    this.api.uploadCategoryImage(file).subscribe({
+      next: (res) => {
+        onSuccess(res.url);
+        this.isBusy.set(false);
+        input.value = '';
+      },
+      error: (e) => {
+        this.error.set(e?.error ?? 'Image upload failed.');
+        this.isBusy.set(false);
+        input.value = '';
+      },
     });
   }
 }

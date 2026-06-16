@@ -26,6 +26,8 @@
    - `database/add-stock-column.sql` for product stock tracking
    - `database/add-category-parent-id.sql` for subcategories
    - `database/add-customers-auth.sql` for Google / guest customer login
+   - `database/add-discount-price.sql` for product discounts (rupees sale price or percentage off)
+   - `database/add-category-image.sql` for category images
 
 The API loads `.env` on startup and uses SSL for Neon automatically.
 

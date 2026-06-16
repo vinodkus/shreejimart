@@ -1,5 +1,6 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { Product } from '../api/api-client';
+import { effectivePrice } from '../utils/product-price.utils';
 
 export interface CartItem {
   productId: string;
@@ -41,7 +42,7 @@ export class CartService {
       current.push({
         productId: product.id,
         name: product.name,
-        price: product.price,
+        price: effectivePrice(product),
         unit: product.unit,
         imageUrl: product.imageUrl,
         stockQuantity: stock,

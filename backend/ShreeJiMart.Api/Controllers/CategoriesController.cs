@@ -9,7 +9,12 @@ namespace ShreeJiMart.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class CategoriesController(AppDbContext db) : ControllerBase
 {
-    public sealed record CategoryResponse(Guid Id, string Name, Guid? ParentId, string? ParentName);
+    public sealed record CategoryResponse(
+        Guid Id,
+        string Name,
+        Guid? ParentId,
+        string? ParentName,
+        string? ImageUrl);
 
     [HttpGet]
     public async Task<ActionResult<List<CategoryResponse>>> GetAll(CancellationToken ct)
@@ -20,21 +25,29 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
             .OrderBy(x => x.ParentId == null ? 0 : 1)
             .ThenBy(x => x.Parent != null ? x.Parent.Name : x.Name)
             .ThenBy(x => x.Name)
-            .Select(x => new CategoryResponse(x.Id, x.Name, x.ParentId, x.Parent != null ? x.Parent.Name : null))
+            .Select(x => new CategoryResponse(
+                x.Id,
+                x.Name,
+                x.ParentId,
+                x.Parent != null ? x.Parent.Name : null,
+                x.ImageUrl))
             .ToListAsync(ct);
 
         return Ok(items);
     }
 
-    public sealed record CreateCategoryRequest(string Name, Guid? ParentId);
+    public sealed record CreateCategoryRequest(string Name, Guid? ParentId, string? ImageUrl);
 
-    public sealed record UpdateCategoryRequest(string Name, Guid? ParentId);
+    public sealed record UpdateCategoryRequest(string Name, Guid? ParentId, string? ImageUrl);
 
     [HttpPost]
     public async Task<ActionResult<CategoryResponse>> Create([FromBody] CreateCategoryRequest request, CancellationToken ct)
     {
         var validation = ValidateName(request.Name);
         if (validation.ErrorMessage is not null) return BadRequest(validation.ErrorMessage);
+
+        var imageError = ValidateImageUrl(request.ImageUrl);
+        if (imageError is not null) return BadRequest(imageError);
 
         var parentError = await ValidateParentAsync(request.ParentId, null, ct);
         if (parentError is not null) return BadRequest(parentError);
@@ -44,6 +57,7 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
             Id = Guid.NewGuid(),
             Name = validation.Name!,
             ParentId = request.ParentId == Guid.Empty ? null : request.ParentId,
+            ImageUrl = NormalizeImageUrl(request.ImageUrl),
         };
 
         db.Categories.Add(entity);
@@ -61,12 +75,16 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
         var validation = ValidateName(request.Name);
         if (validation.ErrorMessage is not null) return BadRequest(validation.ErrorMessage);
 
+        var imageError = ValidateImageUrl(request.ImageUrl);
+        if (imageError is not null) return BadRequest(imageError);
+
         var parentId = request.ParentId == Guid.Empty ? null : request.ParentId;
         var parentError = await ValidateParentAsync(parentId, id, ct);
         if (parentError is not null) return BadRequest(parentError);
 
         entity.Name = validation.Name!;
         entity.ParentId = parentId;
+        entity.ImageUrl = NormalizeImageUrl(request.ImageUrl);
         await db.SaveChangesAsync(ct);
 
         return Ok(await ToResponseAsync(entity.Id, ct));
@@ -98,7 +116,12 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
             .Include(x => x.Parent)
             .FirstAsync(x => x.Id == id, ct);
 
-        return new CategoryResponse(entity.Id, entity.Name, entity.ParentId, entity.Parent?.Name);
+        return new CategoryResponse(
+            entity.Id,
+            entity.Name,
+            entity.ParentId,
+            entity.Parent?.Name,
+            entity.ImageUrl);
     }
 
     private async Task<string?> ValidateParentAsync(Guid? parentId, Guid? categoryId, CancellationToken ct)
@@ -137,4 +160,15 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
 
         return (null, trimmed);
     }
+
+    private static string? ValidateImageUrl(string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl)) return null;
+
+        var trimmed = imageUrl.Trim();
+        return trimmed.Length > 500 ? "Image URL max length is 500." : null;
+    }
+
+    private static string? NormalizeImageUrl(string? imageUrl) =>
+        string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl.Trim();
 }

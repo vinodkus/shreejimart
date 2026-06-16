@@ -4,7 +4,8 @@
 CREATE TABLE IF NOT EXISTS categories (
     id UUID PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
-    parent_id UUID NULL REFERENCES categories(id) ON DELETE RESTRICT
+    parent_id UUID NULL REFERENCES categories(id) ON DELETE RESTRICT,
+    image_url VARCHAR(500)
 );
 
 CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON categories(parent_id);
@@ -13,7 +14,10 @@ CREATE TABLE IF NOT EXISTS products (
     id UUID PRIMARY KEY,
     category_id UUID NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
     name VARCHAR(160) NOT NULL,
+    description VARCHAR(2000),
     price NUMERIC(12, 2) NOT NULL,
+    discount_type VARCHAR(16) NULL,
+    discount_value NUMERIC(12, 2) NULL,
     unit VARCHAR(32) NOT NULL,
     image_url VARCHAR(500),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,

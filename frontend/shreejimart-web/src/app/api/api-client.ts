@@ -7,13 +7,19 @@ export interface Category {
   name: string;
   parentId?: string | null;
   parentName?: string | null;
+  imageUrl?: string | null;
 }
+
+export type DiscountType = 'rupees' | 'percent';
 
 export interface Product {
   id: string;
   categoryId: string;
   name: string;
+  description?: string | null;
   price: number;
+  discountType?: DiscountType | null;
+  discountValue?: number | null;
   unit: string;
   imageUrl?: string | null;
   isActive: boolean;
@@ -23,7 +29,10 @@ export interface Product {
 export interface ProductPayload {
   categoryId: string;
   name: string;
+  description?: string | null;
   price: number;
+  discountType?: DiscountType | null;
+  discountValue?: number | null;
   unit: string;
   imageUrl?: string | null;
   isActive: boolean;
@@ -32,7 +41,10 @@ export interface ProductPayload {
 
 export interface BulkProductItem {
   name: string;
+  description?: string | null;
   price: number;
+  discountType?: DiscountType | null;
+  discountValue?: number | null;
   unit: string;
   imageUrl?: string | null;
   isActive: boolean;
@@ -82,11 +94,11 @@ export class ApiClient {
     return this.http.get<Category[]>(`${this.baseUrl}/api/categories`);
   }
 
-  createCategory(payload: { name: string; parentId?: string | null }) {
+  createCategory(payload: { name: string; parentId?: string | null; imageUrl?: string | null }) {
     return this.http.post<Category>(`${this.baseUrl}/api/categories`, payload);
   }
 
-  updateCategory(id: string, payload: { name: string; parentId?: string | null }) {
+  updateCategory(id: string, payload: { name: string; parentId?: string | null; imageUrl?: string | null }) {
     return this.http.put<Category>(`${this.baseUrl}/api/categories/${id}`, payload);
   }
 
@@ -98,6 +110,10 @@ export class ApiClient {
     const url = new URL(`${this.baseUrl}/api/products`);
     if (categoryId) url.searchParams.set('categoryId', categoryId);
     return this.http.get<Product[]>(url.toString());
+  }
+
+  getProduct(id: string) {
+    return this.http.get<Product>(`${this.baseUrl}/api/products/${id}`);
   }
 
   createProduct(payload: ProductPayload) {
@@ -120,6 +136,12 @@ export class ApiClient {
     const form = new FormData();
     form.append('file', file);
     return this.http.post<{ url: string }>(`${this.baseUrl}/api/upload/product-image`, form);
+  }
+
+  uploadCategoryImage(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<{ url: string }>(`${this.baseUrl}/api/upload/category-image`, form);
   }
 
   createOrder(payload: CreateOrderPayload) {
