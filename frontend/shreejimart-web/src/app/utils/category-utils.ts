@@ -44,3 +44,30 @@ export function categoryBrowseOptions(categories: Category[]): CategoryBrowseOpt
   }
   return items;
 }
+
+export interface CategorySelection {
+  parentId: string;
+  subcategoryId: string | null;
+}
+
+export function resolveCategorySelection(categories: Category[], categoryId: string): CategorySelection | null {
+  const category = categories.find((c) => c.id === categoryId);
+  if (!category) return null;
+  if (category.parentId) {
+    return { parentId: category.parentId, subcategoryId: category.id };
+  }
+  return { parentId: category.id, subcategoryId: null };
+}
+
+export function subcategoryAtIndex(categories: Category[], parentId: string, index: number) {
+  const subs = subcategoriesOf(categories, parentId);
+  return subs[index] ?? subs[0] ?? null;
+}
+
+export function subcategoryIndex(categories: Category[], subcategoryId: string) {
+  const sub = categories.find((c) => c.id === subcategoryId);
+  if (!sub?.parentId) return 0;
+  const subs = subcategoriesOf(categories, sub.parentId);
+  const index = subs.findIndex((c) => c.id === subcategoryId);
+  return index >= 0 ? index : 0;
+}

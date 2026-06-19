@@ -29,15 +29,10 @@ export class CartService {
   );
 
   addProduct(product: Product) {
-    const stock = product.stockQuantity ?? 0;
-    if (stock < 1) return;
-
     const current = [...this.items()];
     const existing = current.find((x) => x.productId === product.id);
     if (existing) {
-      const maxQty = this.maxQty(stock, existing.stockQuantity);
-      existing.stockQuantity = maxQty;
-      existing.quantity = Math.min(maxQty, existing.quantity + 1);
+      existing.quantity = Math.min(99, existing.quantity + 1);
     } else {
       current.push({
         productId: product.id,
@@ -45,7 +40,7 @@ export class CartService {
         price: effectivePrice(product),
         unit: product.unit,
         imageUrl: product.imageUrl,
-        stockQuantity: stock,
+        stockQuantity: 99,
         quantity: 1,
       });
     }
@@ -59,14 +54,9 @@ export class CartService {
     }
     const current = this.items().map((item) => {
       if (item.productId !== productId) return item;
-      const maxQty = this.maxQty(item.stockQuantity);
-      return { ...item, quantity: Math.min(maxQty, quantity) };
+      return { ...item, quantity: Math.min(99, quantity) };
     });
     this.persist(current);
-  }
-
-  private maxQty(...values: number[]) {
-    return Math.min(99, Math.max(0, ...values));
   }
 
   remove(productId: string) {

@@ -60,21 +60,11 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
             return BadRequest("One or more products are invalid or not available.");
 
         var productMap = products.ToDictionary(x => x.Id);
-        var qtyByProduct = new Dictionary<Guid, int>();
 
         foreach (var item in request.Items)
         {
             if (item.Quantity < 1 || item.Quantity > 99)
                 return BadRequest("Quantity must be between 1 and 99 per product.");
-
-            qtyByProduct[item.ProductId] = qtyByProduct.GetValueOrDefault(item.ProductId) + item.Quantity;
-        }
-
-        foreach (var (productId, qtyNeeded) in qtyByProduct)
-        {
-            var product = productMap[productId];
-            if (product.StockQuantity < qtyNeeded)
-                return BadRequest($"Not enough stock for {product.Name}. Only {product.StockQuantity} left.");
         }
 
         var lines = new List<OrderLine>();
@@ -108,9 +98,6 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
             linkedCustomer = await db.Customers.FirstOrDefaultAsync(x => x.Id == customerId, ct);
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-
-        foreach (var (productId, qtyNeeded) in qtyByProduct)
-            productMap[productId].StockQuantity -= qtyNeeded;
 
         var order = new Order
         {
@@ -197,29 +184,10 @@ public sealed class OrdersController(AppDbContext db) : ControllerBase
 
         if (order is null) return NotFound();
 
-        var previousStatus = order.Status;
-
-        if (status == OrderStatus.Cancelled && previousStatus != OrderStatus.Cancelled)
-            await RestoreStockAsync(order, ct);
-
         order.Status = status;
         await db.SaveChangesAsync(ct);
 
         return Ok(ToDto(order));
-    }
-
-    private async Task RestoreStockAsync(Order order, CancellationToken ct)
-    {
-        var productIds = order.Lines.Select(x => x.ProductId).Distinct().ToList();
-        var products = await db.Products
-            .Where(x => productIds.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, ct);
-
-        foreach (var line in order.Lines)
-        {
-            if (products.TryGetValue(line.ProductId, out var product))
-                product.StockQuantity += line.Quantity;
-        }
     }
 
     private static OrderDto ToDto(Order order) =>

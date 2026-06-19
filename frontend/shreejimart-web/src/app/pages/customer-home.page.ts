@@ -5,7 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiClient, Category, Product } from '../api/api-client';
 import { CartService } from '../cart/cart.service';
 import { resolveImageUrl } from '../utils/image-url';
-import { categoryLabel, categoryNameById, topLevelCategories } from '../utils/category-utils';
+import { categoryLabel, categoryNameById, subcategoriesOf, topLevelCategories } from '../utils/category-utils';
 import { shopCategoryIcon, shopProductEmoji, shopTileColor } from '../utils/product-display.utils';
 import { discountBadge, effectivePrice, hasDiscount, productPriceLabel } from '../utils/product-price.utils';
 
@@ -103,30 +103,42 @@ type SearchSuggestion =
           <h2>Shop by category</h2>
         </div>
 
-        <div
-          class="category-grid"
-          [class.category-grid--collapsed]="!showAllCategories() && hasManyCategories()"
-        >
-          <button
-            type="button"
-            class="category-chip category-chip--compact"
-            *ngFor="let c of topLevel()"
-            (click)="openCategory(c.id)"
-          >
-            <span class="category-chip__icon" *ngIf="!categoryImage(c)">{{ categoryIcon(c.name) }}</span>
-            <img *ngIf="categoryImage(c)" class="category-chip__img" [src]="categoryImage(c)!" [alt]="" />
-            <span class="category-chip__text">{{ c.name }}</span>
-          </button>
-        </div>
+        <div class="category-tree">
+          <article class="category-block" *ngFor="let parent of topLevel()">
+            <div class="category-block__head">
+              <span class="category-block__icon" *ngIf="!categoryImage(parent)">{{ categoryIcon(parent.name) }}</span>
+              <img
+                *ngIf="categoryImage(parent)"
+                class="category-block__img"
+                [src]="categoryImage(parent)!"
+                [alt]=""
+              />
+              <h3 class="category-block__title">{{ parent.name }}</h3>
+            </div>
 
-        <button
-          type="button"
-          class="category-toggle"
-          *ngIf="hasManyCategories()"
-          (click)="toggleCategories()"
-        >
-          {{ showAllCategories() ? 'Show fewer categories' : 'View all ' + topLevel().length + ' categories' }}
-        </button>
+            <div class="subcategory-grid" *ngIf="subsOf(parent.id).length > 0">
+              <button
+                type="button"
+                class="category-chip category-chip--sub"
+                *ngFor="let sub of subsOf(parent.id)"
+                (click)="openCategory(sub.id)"
+              >
+                <span class="category-chip__icon" *ngIf="!categoryImage(sub)">{{ categoryIcon(sub.name) }}</span>
+                <img *ngIf="categoryImage(sub)" class="category-chip__img" [src]="categoryImage(sub)!" [alt]="" />
+                <span class="category-chip__text">{{ sub.name }}</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              class="category-block__solo"
+              *ngIf="subsOf(parent.id).length === 0"
+              (click)="openCategory(parent.id)"
+            >
+              Browse {{ parent.name }}
+            </button>
+          </article>
+        </div>
       </section>
 
       <section class="products-section" *ngIf="isSearching()">
@@ -149,19 +161,6 @@ type SearchSuggestion =
               >
                 <img *ngIf="productImage(p)" class="product-tile__img" [src]="productImage(p)!" [alt]="p.name" />
                 <span *ngIf="!productImage(p)" class="product-tile__emoji">{{ productEmoji(p.name) }}</span>
-                <span
-                  class="product-tile__discount"
-                  *ngIf="discountBadge(p)"
-                >
-                  {{ discountBadge(p) }}
-                </span>
-                <span
-                  class="product-tile__tag"
-                  [class.product-tile__tag--out]="stockOf(p) <= 0"
-                  *ngIf="p.isActive"
-                >
-                  {{ stockOf(p) > 0 ? stockOf(p) + ' left' : 'Out of stock' }}
-                </span>
               </div>
               <div class="product-tile__body">
                 <h3 class="product-tile__name">{{ p.name }}</h3>
@@ -179,10 +178,9 @@ type SearchSuggestion =
                 type="button"
                 class="btn-add"
                 [class.btn-add--added]="addedId() === p.id"
-                [disabled]="stockOf(p) < 1"
                 (click)="addToCart(p, $event)"
               >
-                {{ stockOf(p) < 1 ? 'OUT' : addedId() === p.id ? 'Added' : 'ADD' }}
+                {{ addedId() === p.id ? 'Added' : 'ADD' }}
               </button>
             </div>
           </article>
@@ -199,13 +197,11 @@ export class CustomerHomePage {
   readonly categories = signal<Category[]>([]);
   readonly allProducts = signal<Product[]>([]);
   readonly addedId = signal<string | null>(null);
-  readonly showAllCategories = signal(false);
   readonly showSuggestions = signal(false);
   readonly searchText = signal('');
 
   readonly topLevel = computed(() => topLevelCategories(this.categories()));
 
-  private readonly categoryCollapseThreshold = 10;
   private readonly maxSuggestions = 8;
 
   readonly isSearching = computed(() => this.searchText().trim().length > 0);
@@ -287,12 +283,8 @@ export class CustomerHomePage {
     return q ? `Results for "${q}"` : 'Popular picks';
   }
 
-  hasManyCategories() {
-    return this.topLevel().length > this.categoryCollapseThreshold;
-  }
-
-  toggleCategories() {
-    this.showAllCategories.update((v) => !v);
+  subsOf(parentId: string) {
+    return subcategoriesOf(this.categories(), parentId);
   }
 
   openCategory(id: string) {
@@ -327,14 +319,9 @@ export class CustomerHomePage {
     return shopTileColor(this.categoryName(categoryId));
   }
 
-  stockOf(product: Product) {
-    return product.stockQuantity ?? 0;
-  }
-
   addToCart(product: Product, event?: Event) {
     event?.preventDefault();
     event?.stopPropagation();
-    if (this.stockOf(product) < 1) return;
     this.cart.addProduct(product);
     this.addedId.set(product.id);
     window.setTimeout(() => {

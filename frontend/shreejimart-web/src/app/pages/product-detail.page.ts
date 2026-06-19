@@ -45,19 +45,6 @@ import { discountBadge, effectivePrice, hasDiscount } from '../utils/product-pri
             <span class="product-detail__unit">per {{ p.unit }}</span>
           </div>
 
-          <p
-            class="product-detail__stock"
-            [class.product-detail__stock--out]="stockOf(p) < 1"
-          >
-            {{
-              !p.isActive
-                ? 'Currently unavailable'
-                : stockOf(p) > 0
-                  ? stockOf(p) + ' in stock'
-                  : 'Out of stock'
-            }}
-          </p>
-
           <section class="product-detail__section" *ngIf="p.description">
             <h2>Description</h2>
             <p class="product-detail__desc">{{ p.description }}</p>
@@ -67,7 +54,7 @@ import { discountBadge, effectivePrice, hasDiscount } from '../utils/product-pri
             <p class="product-detail__desc product-detail__desc--empty">No description added for this product yet.</p>
           </section>
 
-          <div class="product-detail__actions" *ngIf="p.isActive && stockOf(p) > 0">
+          <div class="product-detail__actions" *ngIf="p.isActive">
             <div class="product-detail__qty">
               <span class="product-detail__qty-label">Quantity</span>
               <div class="product-detail__qty-controls">
@@ -77,7 +64,7 @@ import { discountBadge, effectivePrice, hasDiscount } from '../utils/product-pri
                   type="button"
                   class="qty-btn"
                   (click)="changeQty(1)"
-                  [disabled]="quantity() >= stockOf(p)"
+                  [disabled]="quantity() >= 99"
                 >
                   +
                 </button>
@@ -95,7 +82,7 @@ import { discountBadge, effectivePrice, hasDiscount } from '../utils/product-pri
             <button type="button" class="btn-checkout" (click)="buyNow()">Buy now</button>
           </div>
 
-          <p class="product-detail__unavailable" *ngIf="!p.isActive || stockOf(p) < 1">
+          <p class="product-detail__unavailable" *ngIf="!p.isActive">
             This product cannot be ordered right now. Browse
             <a [routerLink]="['/category', p.categoryId]">more in this category</a>.
           </p>
@@ -180,20 +167,14 @@ export class ProductDetailPage {
     return shopTileColor(this.categoryName(categoryId));
   }
 
-  stockOf(product: Product) {
-    return product.stockQuantity ?? 0;
-  }
-
   changeQty(delta: number) {
-    const p = this.product();
-    if (!p) return;
     const next = this.quantity() + delta;
-    this.quantity.set(Math.min(this.stockOf(p), Math.max(1, next)));
+    this.quantity.set(Math.min(99, Math.max(1, next)));
   }
 
   addToCart() {
     const p = this.product();
-    if (!p || this.stockOf(p) < 1) return;
+    if (!p) return;
 
     this.cart.addProduct(p);
     this.cart.setQuantity(p.id, this.quantity());

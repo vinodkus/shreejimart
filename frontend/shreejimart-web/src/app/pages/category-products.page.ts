@@ -1,50 +1,44 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { NgForOf, NgIf } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiClient, Category, Product } from '../api/api-client';
 import { CartService } from '../cart/cart.service';
 import { resolveImageUrl } from '../utils/image-url';
-import { categoryBrowseOptions, categoryNameById } from '../utils/category-utils';
-import { shopCategoryIcon, shopProductEmoji, shopTileColor } from '../utils/product-display.utils';
+import {
+  categoryNameById,
+  resolveCategorySelection,
+  subcategoriesOf,
+  subcategoryAtIndex,
+  subcategoryIndex,
+  topLevelCategories,
+} from '../utils/category-utils';
+import { shopProductEmoji, shopTileColor } from '../utils/product-display.utils';
 import { discountBadge, effectivePrice, hasDiscount } from '../utils/product-price.utils';
 
 @Component({
   standalone: true,
-  imports: [NgForOf, NgIf, RouterLink],
+  imports: [NgForOf, NgIf, FormsModule, RouterLink],
   template: `
     <div class="shop shop--category">
       <div class="category-products-head">
         <a routerLink="/" fragment="categories" class="btn-back">← All categories</a>
 
-        <div class="category-switcher" [class.category-switcher--open]="pickerOpen()">
-          <button
-            type="button"
-            class="category-switcher__trigger"
-            (click)="togglePicker()"
-            [attr.aria-expanded]="pickerOpen()"
-          >
-            <span class="category-switcher__icon">{{ categoryIcon(currentCategoryName()) }}</span>
-            <span class="category-switcher__text">
-              <small>Browsing</small>
-              <strong>{{ currentCategoryName() }}</strong>
-            </span>
-            <span class="category-switcher__chevron" aria-hidden="true">▾</span>
-          </button>
+        <div class="category-filters">
+          <label class="category-picker">
+            <span>Category</span>
+            <select [ngModel]="selectedParentId()" (ngModelChange)="onParentChange($event)">
+              <option *ngFor="let parent of parentOptions()" [ngValue]="parent.id">{{ parent.name }}</option>
+            </select>
+          </label>
 
-          <ul class="category-switcher__menu" *ngIf="pickerOpen()">
-            <li *ngFor="let opt of browseOptions()">
-              <button
-                type="button"
-                class="category-switcher__option"
-                [class.category-switcher__option--active]="opt.id === categoryId()"
-                [class.category-switcher__option--sub]="opt.depth > 0"
-                (click)="switchCategory(opt.id)"
-              >
-                <span class="category-switcher__option-icon">{{ categoryIcon(opt.label) }}</span>
-                <span>{{ opt.label }}</span>
-              </button>
-            </li>
-          </ul>
+          <label class="category-picker" *ngIf="subcategoryOptions().length > 0">
+            <span>Subcategory</span>
+            <select [ngModel]="selectedSubcategoryId()" (ngModelChange)="onSubcategoryChange($event)">
+              <option [ngValue]="''">All in {{ parentName() }}</option>
+              <option *ngFor="let sub of subcategoryOptions()" [ngValue]="sub.id">{{ sub.name }}</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -69,19 +63,6 @@ import { discountBadge, effectivePrice, hasDiscount } from '../utils/product-pri
             >
               <img *ngIf="productImage(p)" class="product-tile__img" [src]="productImage(p)!" [alt]="p.name" />
               <span *ngIf="!productImage(p)" class="product-tile__emoji">{{ productEmoji(p.name) }}</span>
-              <span
-                class="product-tile__discount"
-                *ngIf="discountBadge(p)"
-              >
-                {{ discountBadge(p) }}
-              </span>
-              <span
-                class="product-tile__tag"
-                [class.product-tile__tag--out]="stockOf(p) <= 0"
-                *ngIf="p.isActive"
-              >
-                {{ stockOf(p) > 0 ? stockOf(p) + ' left' : 'Out of stock' }}
-              </span>
             </div>
             <div class="product-tile__body">
               <h3 class="product-tile__name">{{ p.name }}</h3>
@@ -99,10 +80,9 @@ import { discountBadge, effectivePrice, hasDiscount } from '../utils/product-pri
               type="button"
               class="btn-add"
               [class.btn-add--added]="addedId() === p.id"
-              [disabled]="stockOf(p) < 1"
               (click)="addToCart(p, $event)"
             >
-              {{ stockOf(p) < 1 ? 'OUT' : addedId() === p.id ? 'Added' : 'ADD' }}
+              {{ addedId() === p.id ? 'Added' : 'ADD' }}
             </button>
           </div>
         </article>
@@ -122,9 +102,24 @@ export class CategoryProductsPage {
   readonly error = signal<string | null>(null);
   readonly loading = signal(true);
   readonly addedId = signal<string | null>(null);
-  readonly pickerOpen = signal(false);
 
-  readonly browseOptions = computed(() => categoryBrowseOptions(this.categories()));
+  readonly parentOptions = computed(() => topLevelCategories(this.categories()));
+
+  readonly selection = computed(() => resolveCategorySelection(this.categories(), this.categoryId()));
+
+  readonly selectedParentId = computed(() => this.selection()?.parentId ?? '');
+
+  readonly selectedSubcategoryId = computed(() => this.selection()?.subcategoryId ?? '');
+
+  readonly subcategoryOptions = computed(() => {
+    const parentId = this.selectedParentId();
+    if (!parentId) return [];
+    return subcategoriesOf(this.categories(), parentId);
+  });
+
+  readonly parentName = computed(() =>
+    categoryNameById(this.categories(), this.selectedParentId(), 'Category'),
+  );
 
   readonly currentCategoryName = computed(() =>
     categoryNameById(this.categories(), this.categoryId(), 'Products'),
@@ -143,18 +138,30 @@ export class CategoryProductsPage {
         return;
       }
       this.categoryId.set(id);
-      this.pickerOpen.set(false);
       this.loadProducts(id);
     });
   }
 
-  togglePicker() {
-    this.pickerOpen.update((v) => !v);
+  onParentChange(parentId: string) {
+    const subs = subcategoriesOf(this.categories(), parentId);
+    if (subs.length === 0) {
+      this.navigateToCategory(parentId);
+      return;
+    }
+
+    const currentSubId = this.selectedSubcategoryId();
+    const index = currentSubId ? subcategoryIndex(this.categories(), currentSubId) : 0;
+    const nextSub = subcategoryAtIndex(this.categories(), parentId, index);
+    this.navigateToCategory(nextSub?.id ?? parentId);
   }
 
-  switchCategory(id: string) {
-    this.pickerOpen.set(false);
-    if (id === this.categoryId()) return;
+  onSubcategoryChange(subcategoryId: string) {
+    const parentId = this.selectedParentId();
+    this.navigateToCategory(subcategoryId || parentId);
+  }
+
+  private navigateToCategory(id: string) {
+    if (!id || id === this.categoryId()) return;
     this.router.navigate(['/category', id]);
   }
 
@@ -177,10 +184,6 @@ export class CategoryProductsPage {
     return categoryNameById(this.categories(), categoryId);
   }
 
-  categoryIcon(name: string) {
-    return shopCategoryIcon(name);
-  }
-
   productImage(p: Product) {
     return resolveImageUrl(p.imageUrl);
   }
@@ -193,14 +196,9 @@ export class CategoryProductsPage {
     return shopTileColor(this.categoryName(categoryId));
   }
 
-  stockOf(product: Product) {
-    return product.stockQuantity ?? 0;
-  }
-
   addToCart(product: Product, event?: Event) {
     event?.preventDefault();
     event?.stopPropagation();
-    if (this.stockOf(product) < 1) return;
     this.cart.addProduct(product);
     this.addedId.set(product.id);
     window.setTimeout(() => {
