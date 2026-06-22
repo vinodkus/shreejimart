@@ -21,6 +21,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
             entity.Property(x => x.ParentId).HasColumnName("parent_id");
             entity.Property(x => x.ImageUrl).HasColumnName("image_url").HasMaxLength(500);
+            entity.Property(x => x.DisplayOrder).HasColumnName("display_order");
 
             entity.HasOne(x => x.Parent)
                 .WithMany(x => x.Children)

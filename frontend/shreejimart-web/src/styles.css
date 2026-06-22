@@ -1310,12 +1310,18 @@ a {
   min-width: 200px;
 }
 
-.category-form__parent {
+.category-form__parent,
+.category-form__order {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
+}
+
+.category-form__order input {
+  width: 120px;
+  min-width: 120px;
 }
 
 .category-name--sub {

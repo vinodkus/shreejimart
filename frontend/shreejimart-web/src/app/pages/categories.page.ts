@@ -31,6 +31,16 @@ import { resolveImageUrl } from '../utils/image-url';
               <option *ngFor="let p of parentOptions()" [value]="p.id">{{ p.name }}</option>
             </select>
           </label>
+          <label class="category-form__order">
+            Display order
+            <input
+              type="number"
+              min="0"
+              name="displayOrder"
+              placeholder="Auto (last)"
+              [(ngModel)]="displayOrder"
+            />
+          </label>
 
           <div class="image-section image-section--compact">
             <h3>Category image</h3>
@@ -60,7 +70,7 @@ import { resolveImageUrl } from '../utils/image-url';
 
           <button type="submit" class="btn-primary" [disabled]="isBusy() || !f.valid">Add category</button>
         </form>
-        <p class="hint">Leave parent empty for a main category, or pick a parent to create a subcategory.</p>
+        <p class="hint">Leave parent empty for a main category, or pick a parent to create a subcategory. Lower display order appears first on the shop page.</p>
       </div>
 
       <div class="admin-card" *ngIf="editingId()">
@@ -82,6 +92,16 @@ import { resolveImageUrl } from '../utils/image-url';
               <option value="">None (top-level)</option>
               <option *ngFor="let p of editParentOptions()" [value]="p.id">{{ p.name }}</option>
             </select>
+          </label>
+          <label class="category-form__order">
+            Display order
+            <input
+              type="number"
+              min="0"
+              name="editDisplayOrder"
+              required
+              [(ngModel)]="editDisplayOrder"
+            />
           </label>
 
           <div class="image-section image-section--compact">
@@ -123,7 +143,7 @@ import { resolveImageUrl } from '../utils/image-url';
           <table class="admin-table">
             <thead>
               <tr>
-                <th>#</th>
+                <th>Order</th>
                 <th>Image</th>
                 <th>Category</th>
                 <th>Type</th>
@@ -132,8 +152,8 @@ import { resolveImageUrl } from '../utils/image-url';
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let c of categories(); let i = index">
-                <td>{{ i + 1 }}</td>
+              <tr *ngFor="let c of categories()">
+                <td>{{ c.displayOrder ?? 0 }}</td>
                 <td>
                   <img class="thumb" [src]="categoryImage(c) || placeholder" [alt]="c.name" />
                 </td>
@@ -169,9 +189,11 @@ export class CategoriesPage {
 
   name = '';
   parentId = '';
+  displayOrder: number | null = null;
   createImageUrl: string | null = null;
   editName = '';
   editParentId = '';
+  editDisplayOrder = 0;
   editImageUrl: string | null = null;
 
   readonly placeholder =
@@ -219,11 +241,13 @@ export class CategoriesPage {
         name,
         parentId: this.parentId || null,
         imageUrl: this.createImageUrl?.trim() || null,
+        displayOrder: this.displayOrder,
       })
       .subscribe({
         next: () => {
           this.name = '';
           this.parentId = '';
+          this.displayOrder = null;
           this.createImageUrl = null;
           this.success.set('Category added.');
           this.refresh();
@@ -237,6 +261,7 @@ export class CategoriesPage {
     this.editingId.set(category.id);
     this.editName = category.name;
     this.editParentId = category.parentId ?? '';
+    this.editDisplayOrder = category.displayOrder ?? 0;
     this.editImageUrl = category.imageUrl ?? null;
     this.error.set(null);
     this.success.set(null);
@@ -246,6 +271,7 @@ export class CategoriesPage {
     this.editingId.set(null);
     this.editName = '';
     this.editParentId = '';
+    this.editDisplayOrder = 0;
     this.editImageUrl = null;
   }
 
@@ -263,6 +289,7 @@ export class CategoriesPage {
         name,
         parentId: this.editParentId || null,
         imageUrl: this.editImageUrl?.trim() || null,
+        displayOrder: this.editDisplayOrder,
       })
       .subscribe({
         next: () => {

@@ -8,6 +8,7 @@ export interface Category {
   parentId?: string | null;
   parentName?: string | null;
   imageUrl?: string | null;
+  displayOrder?: number;
 }
 
 export type DiscountType = 'rupees' | 'percent';
@@ -94,11 +95,11 @@ export class ApiClient {
     return this.http.get<Category[]>(`${this.baseUrl}/api/categories`);
   }
 
-  createCategory(payload: { name: string; parentId?: string | null; imageUrl?: string | null }) {
+  createCategory(payload: { name: string; parentId?: string | null; imageUrl?: string | null; displayOrder?: number | null }) {
     return this.http.post<Category>(`${this.baseUrl}/api/categories`, payload);
   }
 
-  updateCategory(id: string, payload: { name: string; parentId?: string | null; imageUrl?: string | null }) {
+  updateCategory(id: string, payload: { name: string; parentId?: string | null; imageUrl?: string | null; displayOrder?: number | null }) {
     return this.http.put<Category>(`${this.baseUrl}/api/categories/${id}`, payload);
   }
 

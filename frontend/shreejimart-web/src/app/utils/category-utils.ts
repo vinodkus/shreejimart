@@ -1,11 +1,16 @@
 import { Category } from '../api/api-client';
 
+function compareCategories(a: Category, b: Category) {
+  const orderDiff = (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
+  return orderDiff !== 0 ? orderDiff : a.name.localeCompare(b.name);
+}
+
 export function topLevelCategories(categories: Category[]) {
-  return categories.filter((c) => !c.parentId).sort((a, b) => a.name.localeCompare(b.name));
+  return categories.filter((c) => !c.parentId).sort(compareCategories);
 }
 
 export function subcategoriesOf(categories: Category[], parentId: string) {
-  return categories.filter((c) => c.parentId === parentId).sort((a, b) => a.name.localeCompare(b.name));
+  return categories.filter((c) => c.parentId === parentId).sort(compareCategories);
 }
 
 export function hasSubcategories(categories: Category[], categoryId: string) {

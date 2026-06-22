@@ -14,7 +14,8 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
         string Name,
         Guid? ParentId,
         string? ParentName,
-        string? ImageUrl);
+        string? ImageUrl,
+        int DisplayOrder);
 
     [HttpGet]
     public async Task<ActionResult<List<CategoryResponse>>> GetAll(CancellationToken ct)
@@ -23,22 +24,24 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
             .AsNoTracking()
             .Include(x => x.Parent)
             .OrderBy(x => x.ParentId == null ? 0 : 1)
-            .ThenBy(x => x.Parent != null ? x.Parent.Name : x.Name)
+            .ThenBy(x => x.ParentId == null ? x.DisplayOrder : x.Parent!.DisplayOrder)
+            .ThenBy(x => x.DisplayOrder)
             .ThenBy(x => x.Name)
             .Select(x => new CategoryResponse(
                 x.Id,
                 x.Name,
                 x.ParentId,
                 x.Parent != null ? x.Parent.Name : null,
-                x.ImageUrl))
+                x.ImageUrl,
+                x.DisplayOrder))
             .ToListAsync(ct);
 
         return Ok(items);
     }
 
-    public sealed record CreateCategoryRequest(string Name, Guid? ParentId, string? ImageUrl);
+    public sealed record CreateCategoryRequest(string Name, Guid? ParentId, string? ImageUrl, int? DisplayOrder);
 
-    public sealed record UpdateCategoryRequest(string Name, Guid? ParentId, string? ImageUrl);
+    public sealed record UpdateCategoryRequest(string Name, Guid? ParentId, string? ImageUrl, int? DisplayOrder);
 
     [HttpPost]
     public async Task<ActionResult<CategoryResponse>> Create([FromBody] CreateCategoryRequest request, CancellationToken ct)
@@ -49,15 +52,22 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
         var imageError = ValidateImageUrl(request.ImageUrl);
         if (imageError is not null) return BadRequest(imageError);
 
-        var parentError = await ValidateParentAsync(request.ParentId, null, ct);
+        var orderError = ValidateDisplayOrder(request.DisplayOrder);
+        if (orderError is not null) return BadRequest(orderError);
+
+        var parentId = request.ParentId == Guid.Empty ? null : request.ParentId;
+        var parentError = await ValidateParentAsync(parentId, null, ct);
         if (parentError is not null) return BadRequest(parentError);
+
+        var displayOrder = request.DisplayOrder ?? await GetNextDisplayOrderAsync(parentId, ct);
 
         var entity = new Category
         {
             Id = Guid.NewGuid(),
             Name = validation.Name!,
-            ParentId = request.ParentId == Guid.Empty ? null : request.ParentId,
+            ParentId = parentId,
             ImageUrl = NormalizeImageUrl(request.ImageUrl),
+            DisplayOrder = displayOrder,
         };
 
         db.Categories.Add(entity);
@@ -78,6 +88,9 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
         var imageError = ValidateImageUrl(request.ImageUrl);
         if (imageError is not null) return BadRequest(imageError);
 
+        var orderError = ValidateDisplayOrder(request.DisplayOrder);
+        if (orderError is not null) return BadRequest(orderError);
+
         var parentId = request.ParentId == Guid.Empty ? null : request.ParentId;
         var parentError = await ValidateParentAsync(parentId, id, ct);
         if (parentError is not null) return BadRequest(parentError);
@@ -85,6 +98,9 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
         entity.Name = validation.Name!;
         entity.ParentId = parentId;
         entity.ImageUrl = NormalizeImageUrl(request.ImageUrl);
+        if (request.DisplayOrder is not null)
+            entity.DisplayOrder = request.DisplayOrder.Value;
+
         await db.SaveChangesAsync(ct);
 
         return Ok(await ToResponseAsync(entity.Id, ct));
@@ -109,6 +125,15 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    private async Task<int> GetNextDisplayOrderAsync(Guid? parentId, CancellationToken ct)
+    {
+        var max = await db.Categories
+            .Where(x => parentId == null ? x.ParentId == null : x.ParentId == parentId)
+            .MaxAsync(x => (int?)x.DisplayOrder, ct);
+
+        return (max ?? -1) + 1;
+    }
+
     private async Task<CategoryResponse> ToResponseAsync(Guid id, CancellationToken ct)
     {
         var entity = await db.Categories
@@ -121,7 +146,8 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
             entity.Name,
             entity.ParentId,
             entity.Parent?.Name,
-            entity.ImageUrl);
+            entity.ImageUrl,
+            entity.DisplayOrder);
     }
 
     private async Task<string?> ValidateParentAsync(Guid? parentId, Guid? categoryId, CancellationToken ct)
@@ -167,6 +193,12 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
 
         var trimmed = imageUrl.Trim();
         return trimmed.Length > 500 ? "Image URL max length is 500." : null;
+    }
+
+    private static string? ValidateDisplayOrder(int? displayOrder)
+    {
+        if (displayOrder is null) return null;
+        return displayOrder < 0 ? "Display order must be 0 or greater." : null;
     }
 
     private static string? NormalizeImageUrl(string? imageUrl) =>
