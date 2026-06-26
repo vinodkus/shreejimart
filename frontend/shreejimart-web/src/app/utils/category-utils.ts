@@ -17,6 +17,12 @@ export function hasSubcategories(categories: Category[], categoryId: string) {
   return categories.some((c) => c.parentId === categoryId);
 }
 
+export function categoryIdsForFilter(categories: Category[], categoryId: string) {
+  if (!categoryId) return [];
+  const childIds = categories.filter((c) => c.parentId === categoryId).map((c) => c.id);
+  return childIds.length > 0 ? [categoryId, ...childIds] : [categoryId];
+}
+
 export function categoryLabel(categories: Category[], category: Category) {
   if (!category.parentId) return category.name;
   const parent = categories.find((c) => c.id === category.parentId);

@@ -5,10 +5,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs';
 import { CartService } from './cart/cart.service';
 import { CustomerAuthService } from './auth/customer-auth.service';
+import { ProductSearchComponent } from './components/product-search';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, NgIf],
+  imports: [RouterOutlet, RouterLink, NgIf, ProductSearchComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

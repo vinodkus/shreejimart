@@ -9,9 +9,11 @@ import { AdminLoginPage } from './pages/admin-login.page';
 import { CustomerLoginPage } from './pages/customer-login.page';
 
 import { ProductDetailPage } from './pages/product-detail.page';
+import { ProductSearchPage } from './pages/product-search.page';
 
 export const routes: Routes = [
   { path: '', component: CustomerHomePage },
+  { path: 'search', component: ProductSearchPage },
   { path: 'category/:id', component: CategoryProductsPage },
   { path: 'product/:id', component: ProductDetailPage },
   { path: 'login', component: CustomerLoginPage },

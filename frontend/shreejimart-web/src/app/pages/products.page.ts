@@ -1,10 +1,10 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiClient, Category, DiscountType, Product, ProductPayload } from '../api/api-client';
 import { CategorySearchSelectComponent } from '../components/category-search-select';
 import { resolveImageUrl } from '../utils/image-url';
-import { categoryNameById } from '../utils/category-utils';
+import { categoryNameById, categoryIdsForFilter } from '../utils/category-utils';
 import { discountSummary, effectivePrice, hasDiscount, isDiscountValid } from '../utils/product-price.utils';
 
 interface BulkProductRow {
@@ -28,6 +28,25 @@ type FormMode = 'single' | 'bulk' | null;
     <div class="admin-page">
       <div class="admin-page__toolbar">
         <div class="admin-filters">
+          <label class="admin-filters__search">
+            Search products
+            <input
+              type="search"
+              [ngModel]="searchQuery()"
+              (ngModelChange)="searchQuery.set($event)"
+              name="searchQuery"
+              placeholder="Name, description, unit, category..."
+            />
+          </label>
+          <label class="admin-filters__checkbox checkbox-label">
+            <input
+              type="checkbox"
+              [ngModel]="searchAllCategories()"
+              (ngModelChange)="searchAllCategories.set($event)"
+              name="searchAllCategories"
+            />
+            Search all categories
+          </label>
           <label>
             Filter category
             <app-category-search-select
@@ -37,11 +56,13 @@ type FormMode = 'single' | 'bulk' | null;
               [allowEmpty]="true"
               emptyLabel="All categories"
               placeholder="Search or filter by category..."
-              (ngModelChange)="refreshProducts()"
             />
           </label>
           <button type="button" class="btn-secondary" (click)="refreshProducts()">Refresh</button>
         </div>
+        <p class="hint admin-filters__hint" *ngIf="searchQuery().trim() && searchAllCategories() && filterCategoryId">
+          Showing matches from all categories (category filter ignored while searching).
+        </p>
         <div class="admin-page__actions">
           <button type="button" class="btn-secondary" (click)="openBulkCreate()">+ Bulk add</button>
           <button type="button" class="btn-primary" (click)="openCreate()">+ Add product</button>
@@ -362,7 +383,7 @@ type FormMode = 'single' | 'bulk' | null;
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let p of products()">
+              <tr *ngFor="let p of filteredProducts()">
                 <td>
                   <img class="thumb" [src]="productImage(p) || placeholder" [alt]="p.name" />
                 </td>
@@ -401,7 +422,10 @@ type FormMode = 'single' | 'bulk' | null;
               </tr>
             </tbody>
           </table>
-          <p class="empty" *ngIf="products().length === 0">No products yet. Click “Add product” or “Bulk add”.</p>
+          <p class="empty" *ngIf="allProducts().length === 0">No products yet. Click “Add product” or “Bulk add”.</p>
+          <p class="empty" *ngIf="allProducts().length > 0 && filteredProducts().length === 0">
+            No products match “{{ searchQuery().trim() }}”.
+          </p>
         </div>
       </div>
     </div>
@@ -411,7 +435,7 @@ export class ProductsPage {
   private readonly api = inject(ApiClient);
 
   readonly categories = signal<Category[]>([]);
-  readonly products = signal<Product[]>([]);
+  readonly allProducts = signal<Product[]>([]);
   readonly isBusy = signal(false);
   readonly error = signal<string | null>(null);
   readonly success = signal<string | null>(null);
@@ -419,6 +443,33 @@ export class ProductsPage {
   readonly editingId = signal<string | null>(null);
 
   filterCategoryId = '';
+  readonly searchQuery = signal('');
+  readonly searchAllCategories = signal(true);
+
+  readonly filteredProducts = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    const categories = this.categories();
+    let items = this.allProducts();
+
+    const useCategoryFilter = this.filterCategoryId && (!q || !this.searchAllCategories());
+    if (useCategoryFilter) {
+      const allowedIds = new Set(categoryIdsForFilter(categories, this.filterCategoryId));
+      items = items.filter((p) => allowedIds.has(p.categoryId));
+    }
+
+    if (!q) return items;
+
+    return items.filter((p) => {
+      const category = categoryNameById(categories, p.categoryId, '').toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.description ?? '').toLowerCase().includes(q) ||
+        p.unit.toLowerCase().includes(q) ||
+        category.includes(q)
+      );
+    });
+  });
+
   form: ProductPayload = this.emptyForm();
   bulkCategoryId = '';
   bulkRows: BulkProductRow[] = [this.emptyBulkRow(), this.emptyBulkRow(), this.emptyBulkRow()];
@@ -477,8 +528,8 @@ export class ProductsPage {
 
   refreshProducts() {
     this.error.set(null);
-    this.api.listProducts(this.filterCategoryId || undefined).subscribe({
-      next: (items) => this.products.set(items),
+    this.api.listProducts().subscribe({
+      next: (items) => this.allProducts.set(items),
       error: (e) => this.error.set(e?.message ?? 'Failed to load products'),
     });
   }

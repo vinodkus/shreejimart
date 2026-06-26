@@ -15,6 +15,7 @@ import {
 } from '../utils/category-utils';
 import { shopProductEmoji, shopTileColor } from '../utils/product-display.utils';
 import { discountBadge, effectivePrice, hasDiscount } from '../utils/product-price.utils';
+import { filterProductsByQuery } from '../utils/product-search.utils';
 
 @Component({
   standalone: true,
@@ -40,21 +41,47 @@ import { discountBadge, effectivePrice, hasDiscount } from '../utils/product-pri
             </select>
           </label>
         </div>
+
+        <div class="search-bar-wrap category-products-search">
+          <div class="search-bar">
+            <span class="search-bar__icon" aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              [ngModel]="searchText()"
+              (ngModelChange)="onSearchInput($event)"
+              placeholder="Search products in this category..."
+              name="productSearch"
+              autocomplete="off"
+            />
+            <button
+              type="button"
+              class="search-bar__clear"
+              *ngIf="searchText()"
+              (click)="clearSearch()"
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="section-head">
         <h2>{{ currentCategoryName() }}</h2>
-        <span class="section-head__count">{{ products().length }} items</span>
+        <span class="section-head__count">{{ filteredProducts().length }} items</span>
       </div>
 
       <p class="shop-alert" *ngIf="error()">{{ error() }}</p>
       <p class="shop-empty" *ngIf="!error() && !loading() && products().length === 0">
         No products in this category yet.
       </p>
+      <p class="shop-empty" *ngIf="!error() && !loading() && products().length > 0 && filteredProducts().length === 0">
+        No products match "{{ searchText().trim() }}".
+      </p>
       <p class="shop-loading" *ngIf="loading()">Loading products…</p>
 
-      <div class="product-grid" *ngIf="!loading() && products().length > 0">
-        <article class="product-tile" *ngFor="let p of products()">
+      <div class="product-grid" *ngIf="!loading() && filteredProducts().length > 0">
+        <article class="product-tile" *ngFor="let p of filteredProducts()">
           <a [routerLink]="['/product', p.id]" class="product-tile__link">
             <div
               class="product-tile__media"
@@ -102,6 +129,11 @@ export class CategoryProductsPage {
   readonly error = signal<string | null>(null);
   readonly loading = signal(true);
   readonly addedId = signal<string | null>(null);
+  readonly searchText = signal('');
+
+  readonly filteredProducts = computed(() =>
+    filterProductsByQuery(this.products(), this.searchText(), this.categories()),
+  );
 
   readonly parentOptions = computed(() => topLevelCategories(this.categories()));
 
@@ -168,6 +200,7 @@ export class CategoryProductsPage {
   private loadProducts(categoryId: string) {
     this.loading.set(true);
     this.error.set(null);
+    this.searchText.set('');
     this.api.listProducts(categoryId).subscribe({
       next: (items) => {
         this.products.set(items.filter((p) => p.isActive));
@@ -182,6 +215,14 @@ export class CategoryProductsPage {
 
   categoryName(categoryId: string) {
     return categoryNameById(this.categories(), categoryId);
+  }
+
+  onSearchInput(value: string) {
+    this.searchText.set(value);
+  }
+
+  clearSearch() {
+    this.searchText.set('');
   }
 
   productImage(p: Product) {
